@@ -66,26 +66,29 @@ export default function App() {
     try {
       // 1. Initial Load Products
       const storedProducts = localStorage.getItem('bazarbd_products');
+      let loadedProducts: Product[] | null = null;
       if (storedProducts) {
-        const parsed = JSON.parse(storedProducts) as Product[];
-        const needsBackfill = !parsed.some(p => p.galleryImages && p.galleryImages.length > 0);
-        if (needsBackfill) {
-          const backfilled = parsed.map(p => {
+        const parsed = JSON.parse(storedProducts);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          loadedProducts = parsed.map(p => {
             const init = INITIAL_PRODUCTS.find(ip => ip.id === p.id);
-            if (init) {
-              return {
-                ...p,
-                galleryImages: init.galleryImages,
-                videoUrl: init.videoUrl
-              };
-            }
-            return p;
-          });
-          setProducts(backfilled);
-          localStorage.setItem('bazarbd_products', JSON.stringify(backfilled));
-        } else {
-          setProducts(parsed);
+            const galleryImages = p.galleryImages || (init ? init.galleryImages : []);
+            const videoUrl = p.videoUrl || (init ? init.videoUrl : '');
+            return {
+              ...p,
+              price: Number(p.price) || 0,
+              stock: Number(p.stock) || 0,
+              managerPrice: p.managerPrice !== undefined && p.managerPrice !== null && (p.managerPrice as any) !== '' ? (Number(p.managerPrice) || undefined) : undefined,
+              galleryImages: Array.isArray(galleryImages) ? galleryImages : [],
+              videoUrl: typeof videoUrl === 'string' ? videoUrl : ''
+            };
+          }) as Product[];
         }
+      }
+
+      if (loadedProducts) {
+        setProducts(loadedProducts);
+        localStorage.setItem('bazarbd_products', JSON.stringify(loadedProducts));
       } else {
         setProducts(INITIAL_PRODUCTS);
         localStorage.setItem('bazarbd_products', JSON.stringify(INITIAL_PRODUCTS));
@@ -99,31 +102,66 @@ export default function App() {
     try {
       // 2. Initial Load User
       const storedUser = localStorage.getItem('bazarbd_user');
+      let loadedUser: UserType | null = null;
       if (storedUser) {
-        setCurrentUser(JSON.parse(storedUser));
+        const parsed = JSON.parse(storedUser);
+        if (parsed && typeof parsed === 'object' && parsed.id) {
+          loadedUser = parsed;
+          setCurrentUser(parsed);
+        } else {
+          localStorage.removeItem('bazarbd_user');
+        }
       }
-    } catch (e) {
-      console.error("Error reading user from localStorage:", e);
-      localStorage.removeItem('bazarbd_user');
-    }
-
-    try {
-      // 3. Initial Load Cart
-      const storedCart = localStorage.getItem('bazarbd_cart');
+      
+      // Load cart specifically for the user (or guest) on start to avoid flash of empty cart
+      const cartKey = loadedUser ? `bazarbd_cart_${loadedUser.id}` : 'bazarbd_cart_guest';
+      const storedCart = localStorage.getItem(cartKey);
       if (storedCart) {
-        setCart(JSON.parse(storedCart));
+        const parsed = JSON.parse(storedCart);
+        if (Array.isArray(parsed)) {
+          const sanitizedCart = parsed.map((item: any) => {
+            if (item && item.product) {
+              return {
+                ...item,
+                quantity: Number(item.quantity) || 1,
+                product: {
+                  ...item.product,
+                  price: Number(item.product.price) || 0,
+                  stock: Number(item.product.stock) || 0,
+                  managerPrice: item.product.managerPrice !== undefined && item.product.managerPrice !== null && (item.product.managerPrice as any) !== '' ? (Number(item.product.managerPrice) || undefined) : undefined,
+                  galleryImages: Array.isArray(item.product.galleryImages) ? item.product.galleryImages : [],
+                  videoUrl: typeof item.product.videoUrl === 'string' ? item.product.videoUrl : ''
+                }
+              };
+            }
+            return null;
+          }).filter(Boolean) as CartItem[];
+          setCart(sanitizedCart);
+        } else {
+          setCart([]);
+          localStorage.removeItem(cartKey);
+        }
+      } else {
+        setCart([]);
       }
     } catch (e) {
-      console.error("Error reading cart from localStorage:", e);
-      setCart([]);
-      localStorage.removeItem('bazarbd_cart');
+      console.error("Error reading user/cart from localStorage:", e);
+      localStorage.removeItem('bazarbd_user');
     }
 
     try {
       // 4. Initial Load Orders & Seed with realistic historical records
       const storedOrders = localStorage.getItem('bazarbd_orders');
+      let loadedOrders: Order[] | null = null;
       if (storedOrders) {
-        setOrders(JSON.parse(storedOrders));
+        const parsed = JSON.parse(storedOrders);
+        if (Array.isArray(parsed)) {
+          loadedOrders = parsed as Order[];
+        }
+      }
+
+      if (loadedOrders) {
+        setOrders(loadedOrders);
       } else {
         const seedOrders: Order[] = [
           {
@@ -189,8 +227,16 @@ export default function App() {
     try {
       // 5. Load Email Logs
       const storedEmails = localStorage.getItem('bazarbd_emails');
+      let loadedEmails: EmailNotification[] | null = null;
       if (storedEmails) {
-        setEmailLogs(JSON.parse(storedEmails));
+        const parsed = JSON.parse(storedEmails);
+        if (Array.isArray(parsed)) {
+          loadedEmails = parsed as EmailNotification[];
+        }
+      }
+
+      if (loadedEmails) {
+        setEmailLogs(loadedEmails);
       } else {
         const seedEmails: EmailNotification[] = [
           {
@@ -226,36 +272,137 @@ iBazar সাপোর্ট টিম।`,
     }
   }, []);
 
-  // --- Core Functional Modifiers ---
+  const safeStorageSet = (key: string, value: any) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (e) {
+      console.error(`Failed to set ${key} in localStorage:`, e);
+      alert('লোকাল স্টোরেজ পূর্ণ হয়ে গেছে! দয়া করে ব্রাউজার ডাটা ক্লিয়ার করুন।');
+      return false;
+    }
+  };
 
   const handleLogin = (user: UserType) => {
     setCurrentUser(user);
     localStorage.setItem('bazarbd_user', JSON.stringify(user));
+    
+    // Load user's cart
+    const cartKey = `bazarbd_cart_${user.id}`;
+    const storedCart = localStorage.getItem(cartKey);
+    if (storedCart) {
+      try {
+        const parsed = JSON.parse(storedCart);
+        if (Array.isArray(parsed)) {
+          const sanitizedCart = parsed.map((item: any) => {
+            if (item && item.product) {
+              return {
+                ...item,
+                quantity: Number(item.quantity) || 1,
+                product: {
+                  ...item.product,
+                  price: Number(item.product.price) || 0,
+                  stock: Number(item.product.stock) || 0,
+                  managerPrice: item.product.managerPrice !== undefined && item.product.managerPrice !== null && (item.product.managerPrice as any) !== '' ? (Number(item.product.managerPrice) || undefined) : undefined,
+                  galleryImages: Array.isArray(item.product.galleryImages) ? item.product.galleryImages : [],
+                  videoUrl: typeof item.product.videoUrl === 'string' ? item.product.videoUrl : ''
+                }
+              };
+            }
+            return null;
+          }).filter(Boolean) as CartItem[];
+          setCart(sanitizedCart);
+        } else {
+          setCart([]);
+        }
+      } catch (e) {
+        setCart([]);
+      }
+    } else {
+      setCart([]);
+    }
+    
+    setActiveView('admin');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('bazarbd_user');
+    
+    // Load guest cart
+    const storedCart = localStorage.getItem('bazarbd_cart_guest');
+    if (storedCart) {
+      try {
+        const parsed = JSON.parse(storedCart);
+        if (Array.isArray(parsed)) {
+          const sanitizedCart = parsed.map((item: any) => {
+            if (item && item.product) {
+              return {
+                ...item,
+                quantity: Number(item.quantity) || 1,
+                product: {
+                  ...item.product,
+                  price: Number(item.product.price) || 0,
+                  stock: Number(item.product.stock) || 0,
+                  managerPrice: item.product.managerPrice !== undefined && item.product.managerPrice !== null && (item.product.managerPrice as any) !== '' ? (Number(item.product.managerPrice) || undefined) : undefined,
+                  galleryImages: Array.isArray(item.product.galleryImages) ? item.product.galleryImages : [],
+                  videoUrl: typeof item.product.videoUrl === 'string' ? item.product.videoUrl : ''
+                }
+              };
+            }
+            return null;
+          }).filter(Boolean) as CartItem[];
+          setCart(sanitizedCart);
+        } else {
+          setCart([]);
+        }
+      } catch (e) {
+        setCart([]);
+      }
+    } else {
+      setCart([]);
+    }
+    
     setActiveView('shop');
   };
 
+  const currentCartKey = currentUser ? `bazarbd_cart_${currentUser.id}` : 'bazarbd_cart_guest';
+
   const handleAddToCart = (product: Product) => {
-    if (product.stock <= 0) return;
+    if (currentUser?.role === 'admin') return; // admins cannot add to cart
+    if (!product || Number(product.stock) <= 0) return;
 
     setCart(prev => {
-      const existing = prev.find(item => item.product.id === product.id);
+      const cleanPrev = Array.isArray(prev) ? prev.filter(item => item && item.product) : [];
+      const existing = cleanPrev.find(item => item.product.id === product.id);
       let updated: CartItem[];
+      
+      const safeProduct = {
+        ...product,
+        price: Number(product.price) || 0,
+        stock: Number(product.stock) || 0,
+        managerPrice: product.managerPrice !== undefined && product.managerPrice !== null && (product.managerPrice as any) !== '' ? (Number(product.managerPrice) || undefined) : undefined,
+        galleryImages: Array.isArray(product.galleryImages) ? product.galleryImages : [],
+        videoUrl: typeof product.videoUrl === 'string' ? product.videoUrl : ''
+      };
+
       if (existing) {
-        updated = prev.map(item =>
+        updated = cleanPrev.map(item =>
           item.product.id === product.id
-            ? { ...item, quantity: Math.min(product.stock, item.quantity + 1) }
+            ? { ...item, quantity: Math.min(Number(safeProduct.stock), (Number(item.quantity) || 1) + 1) }
             : item
         );
       } else {
-        updated = [...prev, { product, quantity: 1 }];
+        updated = [...cleanPrev, { product: safeProduct, quantity: 1 }];
       }
-      localStorage.setItem('bazarbd_cart', JSON.stringify(updated));
-      return updated;
+      try {
+        localStorage.setItem(currentCartKey, JSON.stringify(updated));
+        return updated;
+      } catch (err) {
+        console.error("Cart storage quota exceeded or failed:", err);
+        alert("লোকাল স্টোরেজ পূর্ণ হয়ে গেছে! দয়া করে কার্ট বা ব্রাউজার ডাটা ক্লিয়ার করুন।");
+        return prev;
+      }
     });
 
     // No automatic popup/drawer open as requested - only update the header cart count badge
@@ -266,7 +413,7 @@ iBazar সাপোর্ট টিম।`,
       const updated = prev.map(item =>
         item.product.id === productId ? { ...item, quantity } : item
       );
-      localStorage.setItem('bazarbd_cart', JSON.stringify(updated));
+      safeStorageSet(currentCartKey, updated);
       return updated;
     });
   };
@@ -274,7 +421,7 @@ iBazar সাপোর্ট টিম।`,
   const handleRemoveFromCart = (productId: string) => {
     setCart(prev => {
       const updated = prev.filter(item => item.product.id !== productId);
-      localStorage.setItem('bazarbd_cart', JSON.stringify(updated));
+      safeStorageSet(currentCartKey, updated);
       return updated;
     });
   };
@@ -296,7 +443,7 @@ iBazar সাপোর্ট টিম।`,
     };
     setEmailLogs(prev => {
       const updated = [...prev, newEmail];
-      localStorage.setItem('bazarbd_emails', JSON.stringify(updated));
+      safeStorageSet('bazarbd_emails', updated);
       return updated;
     });
   };
@@ -305,7 +452,7 @@ iBazar সাপোর্ট টিম।`,
     // 1. Save order
     setOrders(prev => {
       const updated = [...prev, order];
-      localStorage.setItem('bazarbd_orders', JSON.stringify(updated));
+      safeStorageSet('bazarbd_orders', updated);
       return updated;
     });
 
@@ -318,7 +465,7 @@ iBazar সাপোর্ট টিম।`,
         }
         return p;
       });
-      localStorage.setItem('bazarbd_products', JSON.stringify(updated));
+      safeStorageSet('bazarbd_products', updated);
       return updated;
     });
 
@@ -347,7 +494,7 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
 
   const handleClearCart = () => {
     setCart([]);
-    localStorage.removeItem('bazarbd_cart');
+    localStorage.removeItem(currentCartKey);
     setDiscountAmount(0);
     setPromoApplied('');
   };
@@ -357,7 +504,7 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
   const handleAddProduct = (newProd: Product) => {
     setProducts(prev => {
       const updated = [...prev, newProd];
-      localStorage.setItem('bazarbd_products', JSON.stringify(updated));
+      safeStorageSet('bazarbd_products', updated);
       return updated;
     });
   };
@@ -365,7 +512,7 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
   const handleUpdateProduct = (updatedProd: Product) => {
     setProducts(prev => {
       const updated = prev.map(p => p.id === updatedProd.id ? updatedProd : p);
-      localStorage.setItem('bazarbd_products', JSON.stringify(updated));
+      safeStorageSet('bazarbd_products', updated);
       return updated;
     });
   };
@@ -373,7 +520,7 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
   const handleDeleteProduct = (productId: string) => {
     setProducts(prev => {
       const updated = prev.filter(p => p.id !== productId);
-      localStorage.setItem('bazarbd_products', JSON.stringify(updated));
+      safeStorageSet('bazarbd_products', updated);
       return updated;
     });
   };
@@ -399,7 +546,7 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
         }
         return o;
       });
-      localStorage.setItem('bazarbd_orders', JSON.stringify(updated));
+      safeStorageSet('bazarbd_orders', updated);
       return updated;
     });
 
@@ -410,6 +557,14 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
 
       sendEmailNotification(targetOrder.customerEmail, emailSubject, emailBody);
     }
+  };
+
+  const handleDeleteOrder = (orderId: string) => {
+    setOrders(prev => {
+      const updated = prev.filter(o => o.id !== orderId);
+      safeStorageSet('bazarbd_orders', updated);
+      return updated;
+    });
   };
 
   const handleClearEmailLogs = () => {
@@ -473,12 +628,16 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
             >
               অর্ডার ট্র্যাকিং (Track Order)
             </button>
-            <button
-              onClick={() => setActiveView('admin')}
-              className={`px-4.5 py-2 font-black text-xs rounded-xl transition-all hover:scale-103 active:scale-97 cursor-pointer ${activeView === 'admin' ? 'bg-gradient-to-r from-teal-700 to-indigo-800 text-white shadow-md shadow-teal-700/15 border border-teal-600/20' : 'text-gray-650 hover:text-teal-900 hover:bg-teal-50/50'}`}
-            >
-              ড্যাশবোর্ড (Admin Panel)
-            </button>
+            {currentUser && (
+              <button
+                onClick={() => setActiveView('admin')}
+                className={`px-4.5 py-2 font-black text-xs rounded-xl transition-all hover:scale-103 active:scale-97 cursor-pointer ${activeView === 'admin' ? 'bg-gradient-to-r from-teal-700 to-indigo-800 text-white shadow-md shadow-teal-700/15 border border-teal-600/20' : 'text-gray-650 hover:text-teal-900 hover:bg-teal-50/50'}`}
+              >
+                {currentUser.role === 'admin' && 'ড্যাশবোর্ড (Admin Panel)'}
+                {currentUser.role === 'manager' && 'ড্যাশবোর্ড (Manager Panel)'}
+                {currentUser.role === 'customer' && 'কাস্টমার ড্যাশবোর্ড'}
+              </button>
+            )}
           </nav>
 
 
@@ -519,19 +678,21 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
             </button>
 
             {/* Shopping Cart button trigger */}
-            <button
-              id="header-cart-icon-btn"
-              onClick={() => setCartOpen(true)}
-              className="p-2 sm:px-3.5 sm:py-2 bg-gray-100 border border-gray-200/40 hover:bg-emerald-50 hover:border-emerald-250 hover:text-emerald-800 text-gray-700 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer relative"
-            >
-              <ShoppingCart className="w-4.5 h-4.5" />
-              <span className="hidden sm:inline font-bold text-xs">কার্ট</span>
-              {cart.length > 0 && (
-                <span className="bg-emerald-600 text-white font-bold text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-xs">
-                  {cart.reduce((acc, item) => acc + item.quantity, 0)}
-                </span>
-              )}
-            </button>
+            {currentUser?.role !== 'admin' && (
+              <button
+                id="header-cart-icon-btn"
+                onClick={() => setCartOpen(true)}
+                className="p-2 sm:px-3.5 sm:py-2 bg-gray-100 border border-gray-200/40 hover:bg-emerald-50 hover:border-emerald-250 hover:text-emerald-800 text-gray-700 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer relative"
+              >
+                <ShoppingCart className="w-4.5 h-4.5" />
+                <span className="hidden sm:inline font-bold text-xs">কার্ট</span>
+                {cart.length > 0 && (
+                  <span className="bg-emerald-600 text-white font-bold text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-xs">
+                    {cart.reduce((acc, item) => acc + item.quantity, 0)}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* User Account Controls */}
             {currentUser ? (
@@ -695,19 +856,52 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
                         </p>
                       </div>
 
-                      <div className="flex items-center justify-between border-t border-gray-100 pt-3.5">
-                        <div>
-                          <span className="text-[10px] text-gray-400 block font-semibold uppercase leading-none">মূল্য</span>
-                          <span className="text-md font-extrabold text-emerald-800 font-mono tracking-tight">৳{prod.price.toLocaleString('bn')}</span>
-                        </div>
+                      <div className="border-t border-gray-100 pt-3.5 space-y-2">
+                        {currentUser?.role === 'manager' ? (
+                          <>
+                            <div className="grid grid-cols-2 gap-2 text-[11px]">
+                              <div>
+                                <span className="text-[9px] text-gray-400 block font-semibold uppercase leading-none">বেস প্রাইস</span>
+                                <span className="font-bold text-gray-500 font-mono">৳{prod.price.toLocaleString('bn')}</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[9px] text-amber-700 block font-bold uppercase leading-none">ম্যানেজার প্রাইস</span>
+                                <span className="font-extrabold text-amber-800 font-mono">৳{(prod.managerPrice ?? prod.price).toLocaleString('bn')}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between bg-amber-500/10 px-2 py-1.5 rounded-lg text-[10px] border border-amber-200/40">
+                              <span className="font-semibold text-amber-800">ম্যানেজার লাভ (Profit):</span>
+                              <strong className="font-bold font-mono text-emerald-700">৳{Math.max(0, prod.price - (prod.managerPrice ?? prod.price)).toLocaleString('bn')}</strong>
+                            </div>
+                            <div className="flex justify-between items-center pt-1">
+                              <span className="text-[9px] text-gray-400 font-medium">অর্ডার করতে:</span>
+                              <button
+                                onClick={() => handleAddToCart(prod)}
+                                disabled={prod.stock <= 0}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 text-white disabled:text-gray-400 font-bold text-[10px] rounded-lg transition flex items-center gap-1 cursor-pointer transform active:scale-95 shrink-0"
+                              >
+                                <ShoppingCart className="w-3 h-3" /> কিনুন (Cart)
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-[10px] text-gray-400 block font-semibold uppercase leading-none">মূল্য</span>
+                              <span className="text-md font-extrabold text-emerald-800 font-mono tracking-tight">৳{prod.price.toLocaleString('bn')}</span>
+                            </div>
 
-                        <button
-                          onClick={() => handleAddToCart(prod)}
-                          disabled={prod.stock <= 0}
-                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 text-white disabled:text-gray-400 font-bold text-xs rounded-xl transition flex items-center gap-1 cursor-pointer transform active:scale-95 shrink-0"
-                        >
-                          <ShoppingCart className="w-3.5 h-3.5" /> কিনুন (Cart)
-                        </button>
+                            {currentUser?.role !== 'admin' && (
+                              <button
+                                onClick={() => handleAddToCart(prod)}
+                                disabled={prod.stock <= 0}
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 text-white disabled:text-gray-400 font-bold text-xs rounded-xl transition flex items-center gap-1 cursor-pointer transform active:scale-95 shrink-0"
+                              >
+                                <ShoppingCart className="w-3.5 h-3.5" /> কিনুন (Cart)
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -735,7 +929,9 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
               onUpdateProduct={handleUpdateProduct}
               onDeleteProduct={handleDeleteProduct}
               onUpdateOrderStatus={handleUpdateOrderStatus}
+              onDeleteOrder={handleDeleteOrder}
               isDarkMode={isDarkMode}
+              currentUser={currentUser}
             />
           </div>
         )}
@@ -770,6 +966,7 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
             onUpdateQuantity={handleUpdateCartQuantity}
             onRemoveFromCart={handleRemoveFromCart}
             onCheckout={handleCheckoutOpen}
+            currentUser={currentUser}
           />
         )}
       </AnimatePresence>
@@ -798,6 +995,7 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
               handleAddToCart(prod);
               // Simply add to cart and increment the count in the cart icon without closing the modal
             }}
+            currentUserRole={currentUser?.role}
           />
         )}
       </AnimatePresence>

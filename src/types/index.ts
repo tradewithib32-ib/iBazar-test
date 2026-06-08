@@ -7,7 +7,8 @@ export interface Product {
   id: string;
   name: string;
   description: string;
-  price: number; // in BDT (৳)
+  price: number; // in BDT (৳) (Base Price / Customer Price)
+  managerPrice?: number; // Manager Sales Price
   category: string;
   image: string;
   stock: number;
@@ -20,7 +21,7 @@ export interface CartItem {
   quantity: number;
 }
 
-export type UserRole = 'customer' | 'admin';
+export type UserRole = 'customer' | 'admin' | 'manager';
 
 export interface User {
   id: string;

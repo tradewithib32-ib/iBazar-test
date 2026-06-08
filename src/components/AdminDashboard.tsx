@@ -8,9 +8,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   DollarSign, ShoppingCart, Package, Users, Plus, Edit, Trash2, CheckCircle, 
   Hourglass, Truck, MailCheck, AlertTriangle, Search, FileText, Check, X, ShieldAlert,
-  Upload, Video, Image
+  Upload, Video, Image, User, Download, Phone, MapPin, Mail, RefreshCw, TrendingUp
 } from 'lucide-react';
-import { Product, Order, OrderStatus, EmailNotification } from '../types';
+import { Product, Order, OrderStatus, EmailNotification, User as UserType } from '../types';
 
 interface AdminDashboardProps {
   products: Product[];
@@ -20,7 +20,9 @@ interface AdminDashboardProps {
   onUpdateProduct: (product: Product) => void;
   onDeleteProduct: (productId: string) => void;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  onDeleteOrder: (orderId: string) => void;
   isDarkMode?: boolean;
+  currentUser?: UserType | null;
 }
 
 export default function AdminDashboard({
@@ -31,13 +33,216 @@ export default function AdminDashboard({
   onUpdateProduct,
   onDeleteProduct,
   onUpdateOrderStatus,
-  isDarkMode = false
+  onDeleteOrder,
+  isDarkMode = false,
+  currentUser = null
 }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<'stats' | 'products' | 'orders' | 'emails'>('stats');
   
   // Search states
   const [productQuery, setProductQuery] = useState('');
   const [orderQuery, setOrderQuery] = useState('');
+  const [downloadingOrderId, setDownloadingOrderId] = useState<string | null>(null);
+  const [orderToDelete, setOrderToDelete] = useState<string | null>(null);
+
+  const handleDownloadReceiptPDF = async (placedOrder: Order) => {
+    setDownloadingOrderId(placedOrder.id);
+    try {
+      // Create a high-DPI canvas (width 800px, height 1000px)
+      const canvas = document.createElement('canvas');
+      canvas.width = 800;
+      canvas.height = 1000;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error("Could not initialize 2D context");
+
+      // 1. Solid Elegant white background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Deep green border
+      ctx.strokeStyle = '#059669';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
+
+      // Light gold inner border
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(16, 16, canvas.width - 32, canvas.height - 32);
+
+      // Header Banner background (Emerald color block)
+      ctx.fillStyle = '#064e3b';
+      ctx.fillRect(25, 25, canvas.width - 50, 100);
+
+      // Brand Title
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 36px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('iBazar Shopping BD', 50, 80);
+
+      ctx.fillStyle = '#34d399';
+      ctx.font = 'bold 15px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('অর্ডার মেমো ও অনলাইন মূল্য পরিশোধের রশিদ (ONLINE PAYMENT RECEIPT & INVOICE)', 50, 105);
+
+      // Receipt Metadata lines
+      ctx.fillStyle = '#4b5563';
+      ctx.font = 'normal 13px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(`চালান আইডি (Invoice ID): ${placedOrder.id}`, 50, 160);
+      ctx.fillText(`ইস্যু তারিখ (Date): ${new Date(placedOrder.createdAt).toLocaleString('bn-BD')}`, 50, 180);
+      ctx.fillText(`পেমেন্ট গেটওয়ে (Gateway): ${placedOrder.paymentMethod.toUpperCase()}`, 50, 200);
+
+      // Status Badge (PAID / SUCCESS)
+      ctx.fillStyle = '#ebfbee'; // Very light green
+      ctx.fillRect(520, 150, 230, 50);
+      ctx.strokeStyle = '#2f9e41'; // Bright green stroke
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(520, 150, 230, 50);
+
+      ctx.fillStyle = '#2f9e41';
+      ctx.font = 'bold 15px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('পেমেন্ট অবস্থা (STATUS):', 540, 172);
+      ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('পরিশোধিত (PAID - SUCCESS)', 540, 192);
+
+      // Header lines division
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(25, 220);
+      ctx.lineTo(775, 220);
+      ctx.stroke();
+
+      // Client Address and Delivery Info section
+      ctx.fillStyle = '#f9fafb';
+      ctx.fillRect(25, 235, canvas.width - 50, 95);
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(25, 235, canvas.width - 50, 95);
+
+      ctx.fillStyle = '#065f46';
+      ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('ডেলিভারি গন্তব্য ও গ্রাহকের তথ্য (SHIPPING & CUSTOMER DETAILS)', 40, 260);
+
+      ctx.fillStyle = '#374151';
+      ctx.font = 'normal 13px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(`গ্রাহকের নাম (Customer Name): ${placedOrder.customerName}`, 40, 285);
+      ctx.fillText(`মোবাইল নাম্বার (Phone Number): ${placedOrder.phone}`, 40, 310);
+      ctx.fillText(`প্রদানকৃত ইমেইল (User Email): ${placedOrder.customerEmail}`, 400, 285);
+      ctx.fillText(`ঠিকানা (Address): ${placedOrder.address}`, 400, 310);
+
+      // Section label
+      ctx.fillStyle = '#111827';
+      ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('ক্রয়কৃত পণ্যের তালিকা (ORDER ITEMS SPECIFICATION)', 25, 360);
+
+      // Table Headers background
+      ctx.fillStyle = '#059669';
+      ctx.fillRect(25, 375, canvas.width - 50, 32);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(' নং (No.)', 40, 395);
+      ctx.fillText('পণ্য বিবরণী ও শিরোনাম (Purchased Product Name)', 100, 395);
+      ctx.fillText('একক মূল্য (Unit Price)', 480, 395);
+      ctx.fillText('পরিমাণ (Qty)', 600, 395);
+      ctx.fillText('মোট মূল্য (Subtotal)', 680, 395);
+
+      let currentY = 430;
+      placedOrder.items.forEach((item, index) => {
+        // Alternating background colors for rows
+        if (index % 2 === 1) {
+          ctx.fillStyle = '#fafdff';
+          ctx.fillRect(25, currentY - 20, canvas.width - 50, 30);
+        }
+
+        ctx.fillStyle = '#374151';
+        ctx.font = 'normal 12px "Segoe UI", Arial, sans-serif';
+        ctx.fillText(`${index + 1}`, 40, currentY);
+        ctx.fillText(item.name || 'Product Premium Item', 100, currentY);
+        ctx.fillText(`৳${item.price.toLocaleString('bn')}`, 480, currentY);
+        ctx.fillText(`${item.quantity}টি`, 600, currentY);
+        ctx.fillText(`৳${(item.price * item.quantity).toLocaleString('bn')}`, 680, currentY);
+
+        ctx.strokeStyle = '#e5e7eb';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(25, currentY + 10);
+        ctx.lineTo(775, currentY + 10);
+        ctx.stroke();
+
+        currentY += 35;
+      });
+
+      // Price Calculations panel
+      ctx.fillStyle = '#f3f4f6';
+      ctx.fillRect(490, currentY + 15, 285, 90);
+      ctx.strokeStyle = '#d1d5db';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(490, currentY + 15, 285, 90);
+
+      ctx.fillStyle = '#4b5563';
+      ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('সর্বমোট মূল্য (Subtotal):', 505, currentY + 40);
+      ctx.fillText('বাংলাদেশ ডেলিভারি ভ্যাট (VAT):', 505, currentY + 65);
+      
+      ctx.fillStyle = '#065f46';
+      ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('পরিশোধিত মোট (Net Paid Amount):', 505, currentY + 90);
+
+      ctx.fillStyle = '#111827';
+      ctx.font = 'bold 13px "Courier New", monospace';
+      ctx.fillText(`৳${placedOrder.totalAmount.toLocaleString('bn')}`, 690, currentY + 40);
+      ctx.fillText('৳০ (মুক্ত)', 690, currentY + 65);
+      
+      ctx.fillStyle = '#047857';
+      ctx.font = 'bold 15px "Courier New", monospace';
+      ctx.fillText(`৳${placedOrder.totalAmount.toLocaleString('bn')}`, 690, currentY + 90);
+
+      // Official Stamp / Signature Seal
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.arc(160, currentY + 60, 48, 0, 2 * Math.PI);
+      ctx.stroke();
+
+      ctx.fillStyle = '#10b981';
+      ctx.font = 'bold 11px "Courier New", monospace';
+      ctx.fillText('iBazar Shopping', 112, currentY + 48);
+      ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('PAID - নিশ্চিত', 113, currentY + 64);
+      ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('সফল ক্যাশ রিসিভড', 113, currentY + 78);
+
+      // Support Footer Note
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(25, 920);
+      ctx.lineTo(775, 920);
+      ctx.stroke();
+
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = 'italic 11px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('ধন্যবাদ আপনার আস্থার জন্য! কোনো প্রয়োজনে ইমেইল করুন: customer@ibazar.com অথবা কল করুন হেল্পলাইনে।', 40, 940);
+      ctx.font = 'normal 9px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('This is an automatically generated electronic payment report by iBazar systems. No physical signature or stamp required.', 40, 960);
+
+      // Load jsPDF dynamically and add the canvas image
+      const { jsPDF } = await import('jspdf');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+      pdf.save(`iBazar_Payment_Receipt_${placedOrder.id}.pdf`);
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      alert("দুঃখিত, পিডিএফ রিপোর্ট তৈরি করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।");
+    } finally {
+      setDownloadingOrderId(null);
+    }
+  };
 
   // Modals / Form editing state
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -47,6 +252,7 @@ export default function AdminDashboard({
   const [prodName, setProdName] = useState('');
   const [prodDesc, setProdDesc] = useState('');
   const [prodPrice, setProdPrice] = useState(0);
+  const [prodManagerPrice, setProdManagerPrice] = useState<number | ''>('');
   const [prodCategory, setProdCategory] = useState('Electronics');
   const [prodImage, setProdImage] = useState('');
   const [prodStock, setProdStock] = useState(1);
@@ -54,21 +260,56 @@ export default function AdminDashboard({
   const [prodGallery, setProdGallery] = useState<string[]>([]);
   const [prodVideoUrl, setProdVideoUrl] = useState('');
 
+  const processImageFile = (file: File, setter: (val: string) => void) => {
+    if (file.size > 5 * 1024 * 1024) {
+      alert("ফাইল সাইজ ৫ মেগাবাইটের কম হতে হবে (File size must be under 5MB)");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          setter(canvas.toDataURL('image/jpeg', 0.8));
+        } else {
+          if (typeof event.target?.result === 'string') {
+            setter(event.target.result);
+          }
+        }
+      };
+      if (typeof event.target?.result === 'string') {
+        img.src = event.target.result;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   // File upload handlers
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert("ফাইল সাইজ ৫ মেগাবাইটের কম হতে হবে (File size must be under 5MB)");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setProdImage(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      processImageFile(file, setProdImage);
     }
   };
 
@@ -86,17 +327,7 @@ export default function AdminDashboard({
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file && file.type.startsWith('image/')) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert("ফাইল সাইজ ৫ মেগাবাইটের কম হতে হবে (File size must be under 5MB)");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setProdImage(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      processImageFile(file, setProdImage);
     }
   };
 
@@ -114,6 +345,7 @@ export default function AdminDashboard({
       setProdName(product.name);
       setProdDesc(product.description);
       setProdPrice(product.price);
+      setProdManagerPrice(product.managerPrice !== undefined ? product.managerPrice : '');
       setProdCategory(product.category);
       setProdImage(product.image);
       setProdStock(product.stock);
@@ -124,6 +356,7 @@ export default function AdminDashboard({
       setProdName('');
       setProdDesc('');
       setProdPrice(100);
+      setProdManagerPrice('');
       setProdCategory('Electronics');
       setProdImage('https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=600');
       setProdStock(10);
@@ -138,6 +371,7 @@ export default function AdminDashboard({
     if (!prodName || !prodPrice || prodPrice <= 0) return;
 
     const targetImage = prodImage || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=600';
+    const finalManagerPrice = prodManagerPrice !== '' ? Number(prodManagerPrice) : undefined;
 
     if (editingProduct) {
       onUpdateProduct({
@@ -145,6 +379,7 @@ export default function AdminDashboard({
         name: prodName,
         description: prodDesc,
         price: Number(prodPrice),
+        managerPrice: finalManagerPrice,
         category: prodCategory,
         image: targetImage,
         stock: Number(prodStock),
@@ -157,6 +392,7 @@ export default function AdminDashboard({
         name: prodName,
         description: prodDesc,
         price: Number(prodPrice),
+        managerPrice: finalManagerPrice,
         category: prodCategory,
         image: targetImage,
         stock: Number(prodStock),
@@ -179,6 +415,435 @@ export default function AdminDashboard({
     o.phone.toLowerCase().includes(orderQuery.toLowerCase())
   );
 
+  if (currentUser?.role === 'customer') {
+    // Filter customer orders
+    const customerOrders = orders.filter(o => 
+      o.customerEmail?.toLowerCase() === currentUser?.email?.toLowerCase() || 
+      o.phone === currentUser?.phone ||
+      (currentUser?.name && o.customerName === currentUser?.name)
+    );
+    const customerTotalSpent = customerOrders
+      .filter(o => o.paymentStatus === 'completed' || o.orderStatus === 'delivered')
+      .reduce((acc, curr) => acc + curr.totalAmount, 0);
+    const customerActiveDeliveries = customerOrders.filter(
+      o => o.orderStatus === 'pending' || o.orderStatus === 'processing' || o.orderStatus === 'shipped'
+    ).length;
+
+    return (
+      <div id="customer-dashboard-container" className={`rounded-3xl border shadow-xs overflow-hidden transition-colors duration-300 ${
+        isDarkMode 
+          ? 'bg-gray-900 border-gray-800 text-gray-100' 
+          : 'bg-white border-gray-150/80 text-gray-800'
+      }`}>
+        {/* Customer Top banner */}
+        <div className="p-6 bg-gradient-to-r from-teal-700 via-teal-800 to-emerald-800 text-white flex items-center justify-between">
+          <div>
+            <span className="bg-white/10 text-white/90 px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 w-max mb-1.5 border border-white/10">
+              <User className="w-3.5 h-3.5 text-teal-200" />
+              CUSTOMER DASHBOARD (কাস্টমার ড্যাশবোর্ড)
+            </span>
+            <h3 className="text-xl font-bold tracking-tight">স্বাগতম, {currentUser.name}!</h3>
+            <p className="text-xs text-teal-100/90 mt-0.5">আপনার প্রোফাইল তথ্য এবং অর্ডার হিস্ট্রি ট্র্যাক করুন</p>
+          </div>
+        </div>
+
+        <div className="p-6 md:p-8 space-y-6">
+          {/* Customer metrics grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-emerald-50/45 p-5 rounded-2xl border border-emerald-100/65 flex items-center justify-between dark:bg-emerald-950/20 dark:border-emerald-900/40">
+              <div>
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block">মোট টাকা পরিশোধিত (Total Spent)</span>
+                <span className="text-2xl font-black text-emerald-850 dark:text-emerald-400 font-mono tracking-tight mt-1 block">৳{customerTotalSpent.toLocaleString('bn')}</span>
+              </div>
+              <div className="w-11 h-11 bg-emerald-600/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 rounded-xl flex items-center justify-center">
+                <DollarSign className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-sky-50/45 p-5 rounded-2xl border border-sky-100/60 flex items-center justify-between dark:bg-sky-950/20 dark:border-sky-900/40">
+              <div>
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block">মোট অর্ডারস (Total Orders)</span>
+                <span className="text-2xl font-black text-sky-850 dark:text-sky-400 font-mono tracking-tight mt-1 block">{customerOrders.length} টি</span>
+              </div>
+              <div className="w-11 h-11 bg-sky-600/10 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400 rounded-xl flex items-center justify-center">
+                <ShoppingCart className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-amber-50/45 p-5 rounded-2xl border border-amber-100/60 flex items-center justify-between dark:bg-amber-950/20 dark:border-amber-900/40">
+              <div>
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block">চলতি ডেলিভারি (Active Shipments)</span>
+                <span className="text-2xl font-black text-amber-700 dark:text-amber-400 font-mono tracking-tight mt-1 block">{customerActiveDeliveries} টি</span>
+              </div>
+              <div className="w-11 h-11 bg-amber-600/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 rounded-xl flex items-center justify-center">
+                <Truck className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column: Customer Profile Details */}
+            <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-gray-850 border-gray-800' : 'bg-gray-50/50 border-gray-150/75'}`}>
+              <h4 className="font-bold text-sm text-gray-850 dark:text-gray-200 mb-4 flex items-center gap-1.5 border-b border-gray-100 dark:border-gray-800 pb-2.5">
+                <User className="w-4 h-4 text-emerald-600" /> গ্রাহক প্রোফাইল বিবরণী (Profile Details)
+              </h4>
+              <div className="space-y-4">
+                <div className="flex items-start gap-2.5 text-xs text-gray-600 dark:text-gray-400">
+                  <User className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-[10px] text-gray-400 font-bold block">নাম (Full Name)</span>
+                    <p className="font-bold text-gray-800 dark:text-gray-200 mt-0.5">{currentUser.name}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5 text-xs text-gray-600 dark:text-gray-400">
+                  <Mail className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-[10px] text-gray-400 font-bold block">ইমেইল ঠিকানা (User Email)</span>
+                    <p className="font-semibold text-gray-800 dark:text-gray-200 mt-0.5">{currentUser.email}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5 text-xs text-gray-600 dark:text-gray-400">
+                  <Phone className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-[10px] text-gray-400 font-bold block">মোবাইল নাম্বার (Phone Number)</span>
+                    <p className="font-mono font-semibold text-gray-850 dark:text-gray-250 mt-0.5">{currentUser.phone || 'সরবরাহ করা হয়নি'}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5 text-xs text-gray-600 dark:text-gray-400">
+                  <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-[10px] text-gray-400 font-bold block">ডেলিভারি ঠিকানা (Shipping Address)</span>
+                    <p className="text-gray-800 dark:text-gray-250 font-medium mt-0.5">{currentUser.address || 'সরবরাহ করা হয়নি'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column (span-2): My Orders list */}
+            <div className={`p-6 rounded-2xl border lg:col-span-2 ${isDarkMode ? 'bg-gray-850 border-gray-800' : 'bg-gray-50/50 border-gray-150/75'}`}>
+              <h4 className="font-bold text-sm text-gray-855 dark:text-gray-200 mb-4 flex items-center gap-1.5 border-b border-gray-100 dark:border-gray-800 pb-2.5">
+                <FileText className="w-4 h-4 text-emerald-600" /> আমার অর্ডার এবং রসিদ হিস্ট্রি (My Placed Orders)
+              </h4>
+
+              {customerOrders.length === 0 ? (
+                <div className="py-12 text-center text-gray-400 text-xs">
+                  <Package className="w-10 h-10 mx-auto text-gray-300 mb-2 animate-bounce" />
+                  <p className="font-bold text-gray-500">আপনি এখন পর্যন্ত কোনো অর্ডার করেননি।</p>
+                  <p className="text-[10px] mt-1 text-gray-400">মেলা / শপ থেকে আপনার পছন্দের সামগ্রী কেনাকাটা করুন।</p>
+                </div>
+              ) : (
+                <div className="space-y-4 max-h-[440px] overflow-y-auto pr-1">
+                  {customerOrders.map(order => {
+                    const statusColors = {
+                      pending: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-450 border border-amber-200/40',
+                      processing: 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-450 border border-blue-200/40',
+                      shipped: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-455 border border-indigo-200/40',
+                      delivered: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-450 border border-emerald-200/40',
+                      cancelled: 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-450 border border-red-200/40',
+                    };
+
+                    const isDownloading = downloadingOrderId === order.id;
+
+                    return (
+                      <div 
+                        key={order.id} 
+                        className={`p-4 rounded-xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all hover:shadow-xs ${isDarkMode ? 'bg-gray-900/60 border-gray-800/80 hover:bg-gray-900' : 'bg-white border-gray-150/50 hover:bg-white'}`}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-[11px] font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">
+                              ID: {order.id}
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${statusColors[order.orderStatus as OrderStatus] || 'bg-gray-100'}`}>
+                              {order.orderStatus === 'pending' && 'পেন্ডিং (Pending)'}
+                              {order.orderStatus === 'processing' && 'প্রক্রিয়াধীন (Processing)'}
+                              {order.orderStatus === 'shipped' && 'শিপড (Shipping)'}
+                              {order.orderStatus === 'delivered' && 'ডেলিভার্ড (Delivered)'}
+                              {order.orderStatus === 'cancelled' && 'বাতিল (Cancelled)'}
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-gray-500 font-medium">
+                            {new Date(order.createdAt).toLocaleString('bn-BD', { dateStyle: 'medium', timeStyle: 'short' })}
+                          </div>
+
+                          <div className="text-xs font-semibold text-gray-650 dark:text-gray-350">
+                            পণ্য: {order.items.map(item => `${item.name} (${item.quantity}টি)`).join(', ')}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end border-t border-gray-100 md:border-t-0 pt-2.5 md:pt-0 shrink-0">
+                          <div className="text-right">
+                            <span className="text-[10px] text-gray-400 font-bold block">মোট পরিমাণ</span>
+                            <span className="text-sm font-black text-emerald-700 dark:text-emerald-400 font-mono">৳{order.totalAmount.toLocaleString('bn')}</span>
+                          </div>
+                          <button
+                            onClick={() => handleDownloadReceiptPDF(order)}
+                            disabled={isDownloading}
+                            className="bg-emerald-50 hover:bg-emerald-100 disabled:bg-gray-100 text-emerald-700 disabled:text-gray-400 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/40 p-2 rounded-xl transition cursor-pointer flex items-center justify-center shrink-0"
+                            title="রশিদ ডাউনলোড করুন (Download PDF)"
+                          >
+                            {isDownloading ? (
+                              <RefreshCw className="w-4 h-4 animate-spin text-emerald-600" />
+                            ) : (
+                              <Download className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentUser?.role === 'manager') {
+    // Filter manager orders/sales matching current manager details
+    const managerOrders = orders.filter(o => 
+      o.customerEmail?.toLowerCase() === currentUser?.email?.toLowerCase() || 
+      o.phone === currentUser?.phone ||
+      (currentUser?.name && o.customerName === currentUser?.name)
+    );
+
+    // Calculate total retail value of their sales (what those units sell for as customers buy them)
+    const totalRetailVal = managerOrders.reduce((acc, o) => {
+      return acc + o.items.reduce((sum, item) => {
+        const prod = products.find(p => p.id === item.productId);
+        const originalPrice = prod ? prod.price : item.price;
+        return sum + (originalPrice * item.quantity);
+      }, 0);
+    }, 0);
+
+    // Calculate total purchase cost paid by the manager
+    const totalCost = managerOrders.reduce((acc, o) => acc + o.totalAmount, 0);
+
+    // Calculate overall estimated profit achieved by the manager for these sales
+    const totalManagerProfit = managerOrders.reduce((acc, o) => {
+      return acc + o.items.reduce((sum, item) => {
+        const prod = products.find(p => p.id === item.productId);
+        const originalPrice = prod ? prod.price : item.price;
+        const profitPerUnit = Math.max(0, originalPrice - item.price);
+        return sum + (profitPerUnit * item.quantity);
+      }, 0);
+    }, 0);
+
+    const managerActiveDeliveries = managerOrders.filter(
+      o => o.orderStatus === 'pending' || o.orderStatus === 'processing' || o.orderStatus === 'shipped'
+    ).length;
+
+    return (
+      <div id="manager-dashboard-container" className={`rounded-3xl border shadow-xs overflow-hidden transition-colors duration-300 ${
+        isDarkMode 
+          ? 'bg-gray-900 border-gray-800 text-gray-100' 
+          : 'bg-white border-gray-150/80 text-gray-800'
+      }`}>
+        {/* Manager Top banner */}
+        <div className="p-6 bg-gradient-to-r from-teal-700 via-teal-800 to-indigo-800 text-white flex items-center justify-between">
+          <div>
+            <span className="bg-white/10 text-white/90 px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 w-max mb-1.5 border border-white/10">
+              <ShieldAlert className="w-3.5 h-3.5 text-teal-250 animate-pulse" />
+              MANAGER SALES PORTAL (ম্যানেজার ড্যাশবোর্ড)
+            </span>
+            <h3 className="text-xl font-bold tracking-tight">স্বাগতম, {currentUser.name}!</h3>
+            <p className="text-xs text-teal-100/90 mt-0.5">আপনার করা বিক্রয়, কমিশন এবং লভ্যাংশ রিয়েল-টাইমে ট্র্যাক করুন</p>
+          </div>
+        </div>
+
+        <div className="p-6 md:p-8 space-y-6">
+          {/* Manager metrics grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="bg-sky-50/45 p-5 rounded-2xl border border-sky-100/60 flex items-center justify-between dark:bg-sky-950/20 dark:border-sky-900/40">
+              <div>
+                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest block">মোট বিক্রয়মূল্য (Sales)</span>
+                <span className="text-2xl font-black text-sky-800 dark:text-sky-400 font-mono tracking-tight mt-1 block">৳{totalRetailVal.toLocaleString('bn')}</span>
+              </div>
+              <div className="w-11 h-11 bg-sky-600/10 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400 rounded-xl flex items-center justify-center">
+                <ShoppingCart className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-emerald-50/45 p-5 rounded-2xl border border-emerald-100/60 flex items-center justify-between dark:bg-emerald-950/20 dark:border-emerald-900/40">
+              <div>
+                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest block">আপনার ক্রয়মূল্য (Cost)</span>
+                <span className="text-2xl font-black text-emerald-800 dark:text-emerald-400 font-mono tracking-tight mt-1 block">৳{totalCost.toLocaleString('bn')}</span>
+              </div>
+              <div className="w-11 h-11 bg-emerald-600/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 rounded-xl flex items-center justify-center">
+                <DollarSign className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-amber-50/45 p-5 rounded-2xl border border-amber-100/60 flex items-center justify-between dark:bg-amber-950/20 dark:border-amber-900/40">
+              <div>
+                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest block">অর্জিত লভ্যাংশ (Net Profit)</span>
+                <span className="text-2xl font-black text-amber-750 dark:text-amber-400 font-mono tracking-tight mt-1 block">৳{totalManagerProfit.toLocaleString('bn')}</span>
+              </div>
+              <div className="w-11 h-11 bg-amber-600/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 rounded-xl flex items-center justify-center">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-teal-50/45 p-5 rounded-2xl border border-teal-100/60 flex items-center justify-between dark:bg-teal-950/20 dark:border-teal-900/40">
+              <div>
+                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest block">চলতি ডেলিভারি (Active)</span>
+                <span className="text-2xl font-black text-teal-800 dark:text-teal-400 font-mono tracking-tight mt-1 block">{managerActiveDeliveries} টি</span>
+              </div>
+              <div className="w-11 h-11 bg-teal-600/10 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400 rounded-xl flex items-center justify-center">
+                <Truck className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column: Manager Profile & Guide */}
+            <div className="space-y-6">
+              <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-gray-855 border-gray-800' : 'bg-gray-50/50 border-gray-150/75'}`}>
+                <h4 className="font-bold text-sm text-gray-850 dark:text-gray-200 mb-4 flex items-center gap-1.5 border-b border-gray-100 dark:border-gray-800 pb-2.5">
+                  <User className="w-4 h-4 text-teal-650" /> ম্যানেজার প্রোফাইল (Profile Info)
+                </h4>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-2.5 text-xs text-gray-600 dark:text-gray-400">
+                    <User className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] text-gray-400 font-bold block">নাম (Manager Name)</span>
+                      <p className="font-bold text-gray-800 dark:text-gray-200 mt-0.5">{currentUser.name}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 text-xs text-gray-600 dark:text-gray-400">
+                    <Mail className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] text-gray-400 font-bold block">ইমেইল (User Email)</span>
+                      <p className="font-semibold text-gray-800 dark:text-gray-200 mt-0.5">{currentUser.email}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 text-xs text-gray-600 dark:text-gray-400">
+                    <Phone className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] text-gray-400 font-bold block">মোবাইল (Contact Phone)</span>
+                      <p className="font-mono font-semibold text-gray-850 dark:text-gray-250 mt-0.5">{currentUser.phone || 'সরবরাহ করা হয়নি'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Manager Quick Guidelines */}
+              <div className={`p-5 rounded-2xl border text-xs leading-relaxed ${isDarkMode ? 'bg-gray-855 border-gray-850 text-teal-200/90' : 'bg-teal-50/35 border-teal-100/60 text-teal-850'}`}>
+                <h4 className="font-bold flex items-center gap-1.5 mb-2.5 text-teal-950 dark:text-teal-300">
+                  <CheckCircle className="w-4 h-4 text-teal-600 shrink-0" /> শপ ম্যানেজার গাইড বুক
+                </h4>
+                <ol className="list-decimal list-inside space-y-2">
+                  <li>আপনি শপ/মেলা ট্যাব থেকে আপনার বিশেষ ডিসকাউন্টে (ম্যানেজার প্রাইস) কাস্টমারদের জন্য পণ্য ক্রয় করতে পারবেন।</li>
+                  <li>ম্যানেজার প্রাইস ও রিটেইল বেস প্রাইসের মধ্যকার তফাতটি সম্পূর্ণ আপনার অর্জিত নিট লভ্যাংশ (Net Profit) হিসেবে গণ্য হবে।</li>
+                  <li>আপনার মাধ্যমে করা প্রতি অর্ডারের বর্তমান স্ট্যাটাস ও লাভের রিয়েল-টাইম হিসাব নিচে ট্র্যাকিং তালিকায় দেখানো হচ্ছে।</li>
+                  <li>রসিদ ট্র্যাকিং এবং ডাউনলোডের জন্য <strong className="font-bold">Download</strong> বাটন ব্যবহার করতে পারেন।</li>
+                </ol>
+              </div>
+            </div>
+
+            {/* Right Column: Manager Sales History list */}
+            <div className={`p-6 rounded-2xl border lg:col-span-2 ${isDarkMode ? 'bg-gray-855 border-gray-800' : 'bg-gray-50/50 border-gray-150/75'}`}>
+              <h4 className="font-bold text-sm text-gray-855 dark:text-gray-200 mb-4 flex items-center gap-1.5 border-b border-gray-100 dark:border-gray-800 pb-2.5">
+                <FileText className="w-4 h-4 text-teal-650" /> আমার বিক্রয় এবং কমিশন রেকর্ড (My Placed Sales)
+              </h4>
+
+              {managerOrders.length === 0 ? (
+                <div className="py-12 text-center text-gray-400 text-xs">
+                  <Package className="w-10 h-10 mx-auto text-gray-300 mb-2 animate-bounce" />
+                  <p className="font-bold text-gray-500">আপনার মাধ্যমে কোনো সেলস এবং অর্ডার এখনও করা হয়নি।</p>
+                  <p className="text-[10px] mt-1 text-gray-400">শপ প্যানেলে গিয়ে ম্যানেজার প্রাইসে স্টক কিনুন বা রিসেল করুন।</p>
+                </div>
+              ) : (
+                <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
+                  {managerOrders.map(order => {
+                    const statusColors = {
+                      pending: 'bg-amber-100 text-amber-800 dark:bg-amber-955/35 dark:text-amber-400 border border-amber-200/40',
+                      processing: 'bg-blue-100 text-blue-800 dark:bg-blue-955/35 dark:text-blue-400 border border-blue-200/40',
+                      shipped: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-955/35 dark:text-indigo-400 border border-indigo-200/40',
+                      delivered: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-955/35 dark:text-emerald-450 border border-emerald-200/40',
+                      cancelled: 'bg-red-100 text-red-800 dark:bg-red-955/35 dark:text-red-450 border border-red-200/40',
+                    };
+
+                    const isDownloading = downloadingOrderId === order.id;
+
+                    // Calculate individual order profit
+                    const orderProfit = order.items.reduce((sum, item) => {
+                      const prod = products.find(p => p.id === item.productId);
+                      const originalPrice = prod ? prod.price : item.price;
+                      return sum + (Math.max(0, originalPrice - item.price) * item.quantity);
+                    }, 0);
+
+                    return (
+                      <div 
+                        key={order.id} 
+                        className={`p-4 rounded-xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all hover:shadow-xs ${isDarkMode ? 'bg-gray-900/60 border-gray-800/80 hover:bg-gray-900' : 'bg-white border-gray-150/50 hover:bg-white'}`}
+                      >
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-[11px] font-bold text-gray-450 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">
+                              ID: {order.id}
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${statusColors[order.orderStatus as OrderStatus] || 'bg-gray-100'}`}>
+                              {order.orderStatus === 'pending' && 'পেন্ডিং (Pending)'}
+                              {order.orderStatus === 'processing' && 'প্রক্রিয়াধীন (Processing)'}
+                              {order.orderStatus === 'shipped' && 'শিপড (Shipping)'}
+                              {order.orderStatus === 'delivered' && 'ডেলিভার্ড (Delivered)'}
+                              {order.orderStatus === 'cancelled' && 'বাতিল (Cancelled)'}
+                            </span>
+                            {orderProfit > 0 && (
+                              <span className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                                লভ্যাংশ: ৳{orderProfit.toLocaleString('bn')}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-xs text-gray-500 font-medium">
+                            {new Date(order.createdAt).toLocaleString('bn-BD', { dateStyle: 'medium', timeStyle: 'short' })}
+                          </div>
+
+                          <div className="text-xs font-semibold text-gray-650 dark:text-gray-350">
+                            পণ্য: {order.items.map(item => `${item.name} (${item.quantity}টি)`).join(', ')}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end border-t border-gray-100 md:border-t-0 pt-2.5 md:pt-0 shrink-0">
+                          <div className="text-right">
+                            <span className="text-[10px] text-gray-405 font-bold block">ক্রয়মূল্য</span>
+                            <span className="text-sm font-black text-emerald-700 dark:text-emerald-400 font-mono">৳{order.totalAmount.toLocaleString('bn')}</span>
+                          </div>
+                          <button
+                            onClick={() => handleDownloadReceiptPDF(order)}
+                            disabled={isDownloading}
+                            className="bg-teal-50 hover:bg-teal-100 disabled:bg-gray-100 text-teal-700 disabled:text-gray-400 dark:bg-teal-900/30 dark:hover:bg-teal-900/40 dark:text-teal-400 border border-teal-200/50 dark:border-teal-800/40 p-2 rounded-xl transition cursor-pointer flex items-center justify-center shrink-0"
+                            title="রশিদ ডাউনলোড করুন (Download PDF)"
+                          >
+                            {isDownloading ? (
+                              <RefreshCw className="w-4 h-4 animate-spin text-teal-600" />
+                            ) : (
+                              <Download className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`rounded-3xl border shadow-xs overflow-hidden transition-colors duration-300 ${
       isDarkMode 
@@ -189,10 +854,12 @@ export default function AdminDashboard({
       <div className="p-6 bg-gradient-to-r from-teal-700 via-teal-800 to-emerald-800 text-white flex items-center justify-between">
         <div>
           <span className="bg-white/10 text-white/90 px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 w-max mb-1.5 border border-white/10">
-            <ShieldAlert className="w-3.5 h-3.5" />
-            Admin Control Center (অ্যাডমিন প্যানেল)
+            <ShieldAlert className="w-3.5 h-3.5 text-teal-200 animate-pulse" />
+            ADMIN CONTROL CENTER (অ্যাডমিন প্যানেল)
           </span>
-          <h3 className="text-xl font-bold tracking-tight">স্টোর ম্যানেজমেন্ট এবং মেকানিক্স</h3>
+          <h3 className="text-xl font-bold tracking-tight">
+            স্টোর ম্যানেজমেন্ট এবং মেকানিক্স
+          </h3>
         </div>
         
         {/* Navigation Tabs */}
@@ -338,7 +1005,12 @@ export default function AdminDashboard({
                         </div>
                       </td>
                       <td className="p-4 text-gray-600 font-semibold">{p.category}</td>
-                      <td className="p-4 font-bold text-emerald-800">৳{p.price.toLocaleString('bn')}</td>
+                      <td className="p-4">
+                        <div className="font-bold text-emerald-800">৳{p.price.toLocaleString('bn')}</div>
+                        {p.managerPrice !== undefined && (
+                          <div className="text-[10px] text-amber-700 font-bold mt-0.5 whitespace-nowrap">ম্যানেজার: ৳{p.managerPrice.toLocaleString('bn')}</div>
+                        )}
+                      </td>
                       <td className="p-4">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${p.stock <= 0 ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-gray-100 text-gray-700'}`}>
                           {p.stock <= 0 ? 'স্টেকআউট' : `${p.stock} টি`}
@@ -375,49 +1047,76 @@ export default function AdminDashboard({
       {activeTab === 'orders' && (
         <div className="p-6 md:p-8 space-y-6">
           <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-455" />
             <input
               type="text"
               value={orderQuery}
               onChange={(e) => setOrderQuery(e.target.value)}
               placeholder="অর্ডার নাম্বার, ক্রেতার নাম বা মোবাইল দিয়ে খুঁজুন..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl outline-none text-xs focus:border-emerald-500"
+              className={`w-full pl-10 pr-4 py-2 border rounded-xl outline-none text-xs focus:border-emerald-500 transition-all ${
+                isDarkMode 
+                  ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:bg-gray-750' 
+                  : 'bg-white border-gray-200 text-gray-800 placeholder-gray-400'
+              }`}
             />
           </div>
 
           <div className="space-y-4">
             {filteredOrders.length === 0 ? (
-              <div className="p-12 border border-dashed border-gray-200 rounded-2xl text-center text-gray-400 text-xs">
+              <div className={`p-12 border border-dashed rounded-2xl text-center text-xs ${
+                isDarkMode ? 'border-gray-800 text-gray-500' : 'border-gray-200 text-gray-400'
+              }`}>
                 কোনো গ্রাহকের অর্ডার এন্ট্রি পাওয়া যায়নি।
               </div>
             ) : (
               filteredOrders.map((o) => (
                 <div
                   key={o.id}
-                  className="p-5 border border-gray-150 rounded-2xl bg-gray-50/30 hover:border-emerald-100 transition-all flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4"
+                  className={`p-5 border rounded-2xl transition-all flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 ${
+                    isDarkMode 
+                      ? 'border-gray-800 bg-gray-850 hover:border-emerald-900/60' 
+                      : 'border-gray-150 bg-gray-50/30 hover:border-emerald-100'
+                  }`}
                 >
                   <div className="space-y-1.5 flex-1 select-text">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-emerald-800 font-extrabold font-mono text-sm">{o.id}</span>
-                      <span className="text-[10px] text-gray-450 font-mono">
+                    <div className="flex flex-wrap items-center gap-2 relative pr-10">
+                      <span className={`${isDarkMode ? 'text-emerald-400' : 'text-emerald-800'} font-extrabold font-mono text-sm`}>{o.id}</span>
+                      <span className={`text-[10px] font-mono ${isDarkMode ? 'text-gray-400' : 'text-gray-450'}`}>
                         {new Date(o.createdAt).toLocaleDateString('bn-BD', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      <span className="text-xs uppercase bg-white/80 border border-gray-200/60 px-2 py-0.5 rounded-md font-bold text-gray-700 font-mono">
+                      <span className={`text-xs uppercase px-2 py-0.5 rounded-md font-bold font-mono border ${
+                        isDarkMode 
+                          ? 'bg-gray-900 border-gray-700 text-slate-300' 
+                          : 'bg-white/80 border-gray-200/60 text-gray-700'
+                      }`}>
                         {o.paymentMethod} ({o.paymentStatus === 'completed' ? 'Paid' : 'COD'})
                       </span>
+                      {currentUser?.role === 'admin' && (
+                        <button
+                          onClick={() => setOrderToDelete(o.id)}
+                          className="absolute right-0 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                          title="Delete Order"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
 
-                    <div className="text-xs text-gray-650 space-y-1">
+                    <div className={`text-xs space-y-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-650'}`}>
                       <p>
-                        ক্রেতার নাম : <strong className="text-gray-900 font-semibold">{o.customerName}</strong> | ফোন: <strong className="text-gray-950 font-mono">{o.phone}</strong>
+                        ক্রেতার নাম : <strong className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{o.customerName}</strong> | ফোন: <strong className={`font-mono ${isDarkMode ? 'text-white' : 'text-gray-950'}`}>{o.phone}</strong>
                       </p>
-                      <p className="line-clamp-1 text-gray-550">ইমেল ঠিকানা: {o.customerEmail} | ঠিকানা: {o.address}</p>
+                      <p className={`line-clamp-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-555'}`}>ইমেল ঠিকানা: {o.customerEmail} | ঠিকানা: {o.address}</p>
                       
                       {/* Products snippet */}
-                      <p className="text-emerald-700 bg-white/75 px-2.5 py-1.5 rounded-lg border border-gray-150/40 inline-flex items-center gap-1.5">
-                        <Package className="w-3.5 h-3.5 shrink-0" />
+                      <p className={`px-2.5 py-1.5 rounded-lg border inline-flex items-center gap-1.5 ${
+                        isDarkMode 
+                          ? 'text-emerald-400 bg-emerald-950/20 border-emerald-900/60' 
+                          : 'text-emerald-700 bg-white/75 border-gray-150/40'
+                      }`}>
+                        <Package className={`w-3.5 h-3.5 shrink-0 ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`} />
                         পণ্যসমূহ: {' '}
-                        <span className="font-semibold text-gray-700">
+                        <span className={`font-semibold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                           {o.items.map(item => `${item.name} (${item.quantity}টি)`).join(', ')}
                         </span>
                       </p>
@@ -428,7 +1127,7 @@ export default function AdminDashboard({
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0 lg:text-right w-full lg:w-auto">
                     <div>
                       <span className="text-[10px] uppercase font-bold text-gray-400 block tracking-wider">টোটাল বিল</span>
-                      <strong className="text-base text-emerald-800 font-extrabold font-mono">৳{o.totalAmount.toLocaleString('bn')}</strong>
+                      <strong className={`text-base font-extrabold font-mono ${isDarkMode ? 'text-emerald-400' : 'text-emerald-800'}`}>৳{o.totalAmount.toLocaleString('bn')}</strong>
                     </div>
 
                     <div className="space-y-1.5 w-full sm:w-auto text-left">
@@ -436,25 +1135,41 @@ export default function AdminDashboard({
                       <div className="flex gap-1.5 flex-wrap">
                         <button
                           onClick={() => onUpdateOrderStatus(o.id, 'pending')}
-                          className={`px-2 py-1 rounded text-[10px] font-semibold uppercase border ${o.orderStatus === 'pending' ? 'bg-amber-100/50 border-amber-300 text-amber-800' : 'bg-white border-gray-205 text-gray-500 hover:bg-gray-50'}`}
+                          className={`px-2 py-1 rounded text-[10px] font-semibold uppercase border cursor-pointer ${
+                            o.orderStatus === 'pending' 
+                              ? (isDarkMode ? 'bg-amber-955/40 border-amber-500/50 text-amber-400 font-bold' : 'bg-amber-100/50 border-amber-300 text-amber-800') 
+                              : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50')
+                          }`}
                         >
                           পেন্ডিং
                         </button>
                         <button
                           onClick={() => onUpdateOrderStatus(o.id, 'processing')}
-                          className={`px-2 py-1 rounded text-[10px] font-semibold uppercase border ${o.orderStatus === 'processing' ? 'bg-indigo-100/50 border-indigo-300 text-indigo-805' : 'bg-white border-gray-205 text-gray-500 hover:bg-gray-50'}`}
+                          className={`px-2 py-1 rounded text-[10px] font-semibold uppercase border cursor-pointer ${
+                            o.orderStatus === 'processing' 
+                              ? (isDarkMode ? 'bg-indigo-955/40 border-indigo-500/50 text-indigo-400 font-bold' : 'bg-indigo-100/50 border-indigo-300 text-indigo-805') 
+                              : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50')
+                          }`}
                         >
                           প্রসেস
                         </button>
                         <button
                           onClick={() => onUpdateOrderStatus(o.id, 'shipped')}
-                          className={`px-2 py-1 rounded text-[10px] font-semibold uppercase border ${o.orderStatus === 'shipped' ? 'bg-blue-100/50 border-blue-300 text-blue-800' : 'bg-white border-gray-205 text-gray-500 hover:bg-gray-50'}`}
+                          className={`px-2 py-1 rounded text-[10px] font-semibold uppercase border cursor-pointer ${
+                            o.orderStatus === 'shipped' 
+                              ? (isDarkMode ? 'bg-blue-955/40 border-blue-500/50 text-blue-400 font-bold' : 'bg-blue-100/50 border-blue-300 text-blue-800') 
+                              : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50')
+                          }`}
                         >
                           শিপড্
                         </button>
                         <button
                           onClick={() => onUpdateOrderStatus(o.id, 'delivered')}
-                          className={`px-2 py-1 rounded text-[10px] font-semibold uppercase border ${o.orderStatus === 'delivered' ? 'bg-emerald-100/50 border-emerald-305 text-emerald-800' : 'bg-white border-gray-205 text-gray-500 hover:bg-gray-50'}`}
+                          className={`px-2 py-1 rounded text-[10px] font-semibold uppercase border cursor-pointer ${
+                            o.orderStatus === 'delivered' 
+                              ? (isDarkMode ? 'bg-emerald-955/40 border-emerald-500/50 text-emerald-400 font-bold' : 'bg-emerald-100/50 border-emerald-305 text-emerald-800') 
+                              : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50')
+                          }`}
                         >
                           ডেলিভার্ড
                         </button>
@@ -513,6 +1228,64 @@ export default function AdminDashboard({
 
       {/* Product Add/Edit Modal Renders here natively inside container layout */}
       <AnimatePresence>
+        {orderToDelete && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setOrderToDelete(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className={`relative w-full max-w-sm rounded-[24px] shadow-2xl p-6 ${
+                isDarkMode ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-100'
+              }`}
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                  <Trash2 className="w-8 h-8 text-red-600" />
+                </div>
+                <h3 className={`text-xl font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  অর্ডার মুছে ফেলবেন?
+                </h3>
+                <p className={`mt-2 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  অর্ডার <strong className="font-mono">{orderToDelete}</strong> মুছে ফেললে তা আর ফিরিয়ে আনা সম্ভব হবে না। আপনি কি নিশ্চিত?
+                </p>
+              </div>
+
+              <div className="mt-8 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setOrderToDelete(null)}
+                  className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all border ${
+                    isDarkMode 
+                      ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700' 
+                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  না, বাতিল করুন
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDeleteOrder(orderToDelete);
+                    setOrderToDelete(null);
+                  }}
+                  className="flex-1 px-4 py-3 rounded-xl font-bold transition-all bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg shadow-red-500/20"
+                >
+                  হ্যাঁ, মুছুন
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {isProductModalOpen && (
           <div id="product-form-overlay" className="fixed inset-0 z-55 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
             <motion.div
@@ -561,9 +1334,9 @@ export default function AdminDashboard({
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">
-                    <label className="font-bold text-gray-600 block">মূল্য (Price in BDT ৳)</label>
+                    <label className="font-bold text-gray-600 block">মূল্য (Price ৳)</label>
                     <input
                       type="number"
                       required
@@ -571,11 +1344,22 @@ export default function AdminDashboard({
                       value={prodPrice}
                       onChange={(e) => setProdPrice(Number(e.target.value))}
                       placeholder="1200"
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white outline-none focus:border-teal-600 font-mono text-sm"
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white outline-none focus:border-teal-600 font-mono text-sm"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="font-bold text-gray-600 block">স্টক সংখ্যা (Stock Count)</label>
+                    <label className="font-bold text-gray-600 block">ম্যানেজার প্রাইস (Manager Price ৳)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={prodManagerPrice}
+                      onChange={(e) => setProdManagerPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="যদি থাকে..."
+                      className="w-full px-3 py-2 bg-gray-50 border border-amber-300 rounded-xl focus:bg-white outline-none focus:border-amber-600 font-mono text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-bold text-gray-600 block">স্টক সংখ্যা (Stock)</label>
                     <input
                       type="number"
                       required
@@ -583,7 +1367,7 @@ export default function AdminDashboard({
                       value={prodStock}
                       onChange={(e) => setProdStock(Number(e.target.value))}
                       placeholder="10"
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white outline-none focus:border-teal-600 font-mono text-sm"
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white outline-none focus:border-teal-600 font-mono text-sm"
                     />
                   </div>
                 </div>
@@ -645,7 +1429,21 @@ export default function AdminDashboard({
                     <input
                       type="url"
                       value={prodImage && prodImage.startsWith('data:') ? '' : prodImage}
-                      onChange={(e) => setProdImage(e.target.value)}
+                      onChange={(e) => {
+                        let url = e.target.value;
+                        if (url.includes('drive.google.com/file/d/')) {
+                          const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                          if (match && match[1]) {
+                            url = `https://drive.google.com/thumbnail?id=${match[1]}&sz=w800`;
+                          }
+                        } else if (url.includes('drive.google.com/open?id=')) {
+                          const match = url.match(/id=([a-zA-Z0-9_-]+)/);
+                          if (match && match[1]) {
+                            url = `https://drive.google.com/thumbnail?id=${match[1]}&sz=w800`;
+                          }
+                        }
+                        setProdImage(url);
+                      }}
                       placeholder="অথবা এখানে ইন্টারনেট ছবির লিঙ্ক (Image URL) দিন..."
                       className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white outline-none focus:border-teal-600 text-xs font-sans"
                     />
@@ -684,17 +1482,9 @@ export default function AdminDashboard({
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
-                              if (file.size > 3 * 1024 * 1024) {
-                                alert("ফাইল সাইজ ৩ মেগাবাইটের কম হতে হবে (File under 3MB)");
-                                return;
-                              }
-                              const reader = new FileReader();
-                              reader.onloadend = () => {
-                                if (typeof reader.result === 'string') {
-                                  setProdGallery(prev => [...prev, reader.result as string]);
-                                }
-                              };
-                              reader.readAsDataURL(file);
+                              processImageFile(file, (val) => {
+                                setProdGallery(prev => [...prev, val]);
+                              });
                             }
                           }}
                         />
@@ -714,8 +1504,14 @@ export default function AdminDashboard({
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
-                          const url = e.currentTarget.value.trim();
+                          let url = e.currentTarget.value.trim();
                           if (url) {
+                            if (url.includes('drive.google.com/file/d/')) {
+                              const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                              if (match && match[1]) {
+                                url = `https://drive.google.com/uc?export=view&id=${match[1]}`;
+                              }
+                            }
                             setProdGallery(prev => [...prev, url]);
                             e.currentTarget.value = '';
                           }
@@ -726,8 +1522,14 @@ export default function AdminDashboard({
                       type="button"
                       onClick={() => {
                         const input = document.getElementById('extra-image-url-input') as HTMLInputElement;
-                        const url = input?.value.trim();
+                        let url = input?.value.trim();
                         if (url) {
+                          if (url.includes('drive.google.com/file/d/')) {
+                            const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                            if (match && match[1]) {
+                              url = `https://drive.google.com/uc?export=view&id=${match[1]}`;
+                            }
+                          }
                           setProdGallery(prev => [...prev, url]);
                           input.value = '';
                         }

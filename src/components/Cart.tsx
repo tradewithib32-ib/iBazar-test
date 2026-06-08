@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Plus, Minus, Trash2, ShoppingCart, Tag, Sparkles } from 'lucide-react';
-import { CartItem } from '../types';
+import { CartItem, User as UserType } from '../types';
 
 interface CartProps {
   isOpen: boolean;
@@ -15,6 +15,7 @@ interface CartProps {
   onUpdateQuantity: (productId: string, quantity: number) => void;
   onRemoveFromCart: (productId: string) => void;
   onCheckout: (discountAmount: number, promoApplied: string) => void;
+  currentUser?: UserType | null;
 }
 
 export default function Cart({
@@ -23,7 +24,8 @@ export default function Cart({
   cartItems,
   onUpdateQuantity,
   onRemoveFromCart,
-  onCheckout
+  onCheckout,
+  currentUser
 }: CartProps) {
   const [promoCode, setPromoCode] = useState('');
   const [appliedPromo, setAppliedPromo] = useState('');
@@ -32,7 +34,22 @@ export default function Cart({
 
   if (!isOpen) return null;
 
-  const subtotal = cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+  const isManager = currentUser?.role === 'manager';
+
+  const subtotal = cartItems.reduce((acc, item) => {
+    const itemPrice = Number(item.product.price) || 0;
+    const qty = Number(item.quantity) || 1;
+    return acc + itemPrice * qty;
+  }, 0);
+
+  const managerTotal = cartItems.reduce((acc, item) => {
+    const itemPrice = Number(item.product.managerPrice ?? item.product.price) || 0;
+    const qty = Number(item.quantity) || 1;
+    return acc + itemPrice * qty;
+  }, 0);
+
+  const managerUsername = isManager ? currentUser?.email?.split('@')[0].toUpperCase() || '' : '';
+  const managerNameCode = isManager ? currentUser?.name?.toUpperCase().replace(/\s+/g, '') || '' : '';
 
   const applyPromo = () => {
     setPromoError('');
@@ -43,7 +60,12 @@ export default function Cart({
       return;
     }
 
-    if (code === 'WELCOME20') {
+    if (isManager && (code === managerUsername || code === managerNameCode || code === 'MANAGER')) {
+      const discountedAmount = Math.max(0, subtotal - managerTotal);
+      setDiscount(discountedAmount);
+      setAppliedPromo(`${code} (Manager Discount)`);
+      setPromoCode('');
+    } else if (code === 'WELCOME20') {
       setDiscount(Math.round(subtotal * 0.2));
       setAppliedPromo('WELCOME20 (20% OFF)');
       setPromoCode('');
@@ -99,7 +121,7 @@ export default function Cart({
         </div>
 
         {/* Content list */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           {cartItems.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-4">
               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 border border-gray-100">
@@ -118,42 +140,42 @@ export default function Cart({
             cartItems.map((item) => (
               <div
                 key={item.product.id}
-                className="flex gap-4 p-3 rounded-2xl border border-gray-100 hover:border-emerald-100 transition-all relative overflow-hidden group"
+                className="flex flex-row items-center sm:items-start gap-4 p-4 rounded-2xl border border-gray-100 hover:border-emerald-100 transition-all relative overflow-hidden group shadow-sm bg-white"
               >
-                <div className="w-20 h-20 bg-gray-50 rounded-xl overflow-hidden shrink-0 border border-gray-50">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gray-50 rounded-xl overflow-hidden shrink-0 border border-gray-150 relative">
                   <img
                     src={item.product.image}
                     alt={item.product.name}
                     referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
                   />
                 </div>
 
-                <div className="flex-1 flex flex-col justify-between">
-                  <div>
-                    <h4 className="font-semibold text-sm text-gray-900 leading-snug line-clamp-1">{item.product.name}</h4>
-                    <span className="text-xs text-gray-400 font-mono mt-0.5 block">{item.product.category}</span>
+                <div className="flex-1 flex flex-col gap-2 relative">
+                  <div className="pr-6">
+                    <h4 className="font-bold text-sm text-gray-900 leading-tight line-clamp-2" title={item.product.name}>{item.product.name}</h4>
+                    <span className="text-[11px] text-gray-500 font-medium italic mt-1 block tracking-tight">{item.product.category}</span>
                   </div>
 
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-emerald-700 font-bold text-sm">৳{item.product.price.toLocaleString('bn')}</span>
+                  <div className="flex flex-col gap-2.5 mt-auto">
+                    <span className="text-emerald-700 font-extrabold text-sm tracking-tight">৳{Number(item.product.price).toLocaleString('bn')}</span>
 
                     {/* Quantity Selector */}
-                    <div className="flex items-center gap-1.5 bg-gray-50 p-1 rounded-lg border border-gray-100">
+                    <div className="flex items-center gap-1.5 bg-gray-50 p-1.5 rounded-lg border border-gray-200 self-start">
                       <button
                         onClick={() => onUpdateQuantity(item.product.id, Math.max(1, item.quantity - 1))}
-                        className="p-1 rounded bg-white border border-gray-100 hover:bg-gray-50 text-gray-600 disabled:opacity-40"
+                        className="p-1 rounded-md bg-white border border-gray-200 hover:bg-gray-100 text-gray-600 disabled:opacity-40 transition-all"
                         disabled={item.quantity <= 1}
                       >
-                        <Minus className="w-3 h-3" />
+                        <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="text-xs font-bold font-mono px-1.5 min-w-4 text-center">{item.quantity}</span>
+                      <span className="text-xs font-bold font-mono px-2 min-w-4 text-center text-gray-800">{item.quantity}</span>
                       <button
-                        onClick={() => onUpdateQuantity(item.product.id, Math.min(item.product.stock, item.quantity + 1))}
-                        className="p-1 rounded bg-white border border-gray-100 hover:bg-gray-50 text-gray-600 disabled:opacity-40"
-                        disabled={item.quantity >= item.product.stock}
+                        onClick={() => onUpdateQuantity(item.product.id, Math.max(Number(item.product.stock) || 10, item.quantity + 1))}
+                        className="p-1 rounded-md bg-white border border-gray-200 hover:bg-gray-100 text-gray-600 disabled:opacity-40 transition-all"
+                        disabled={item.quantity >= (Number(item.product.stock) || 10)}
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -161,7 +183,7 @@ export default function Cart({
 
                 <button
                   onClick={() => onRemoveFromCart(item.product.id)}
-                  className="absolute right-3 top-3 p-1.5 rounded-full hover:bg-red-50 text-gray-300 hover:text-red-500 transition-all"
+                  className="absolute right-3 top-3 p-1.5 bg-red-50 sm:bg-transparent rounded-full sm:hover:bg-red-50 text-red-400 sm:text-gray-300 sm:hover:text-red-500 transition-all"
                   title="Remove item"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -215,6 +237,7 @@ export default function Cart({
               {!appliedPromo && !promoError && (
                 <p className="text-[10px] text-gray-400 font-sans">
                   *ট্রাই করুন: <strong className="font-semibold text-emerald-600">WELCOME20</strong> (২০% ডিসকাউন্ট) অথবা <strong className="font-semibold text-emerald-600">EID500</strong> (৫০০৳ ডিসকাউন্ট)
+                  {isManager && <span className="block mt-1">ম্যানেজার: আপনি আপনার ইউজারনেম (<strong className="font-semibold text-emerald-600">{managerUsername}</strong>) ব্যবহার করে ডিসকাউন্ট পেতে পারেন।</span>}
                 </p>
               )}
             </div>

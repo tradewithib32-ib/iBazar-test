@@ -24,7 +24,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, isDarkMode = false
 
   if (!isOpen) return null;
 
-  const handleQuickLogin = (role: 'customer' | 'admin') => {
+  const handleQuickLogin = (role: 'customer' | 'admin' | 'manager') => {
     if (role === 'admin') {
       const adminUser: UserType = {
         id: 'user-admin',
@@ -35,6 +35,17 @@ export default function AuthModal({ isOpen, onClose, onLogin, isDarkMode = false
         address: 'Dhaka HQ, Gulshan-2, Dhaka'
       };
       onLogin(adminUser);
+      onClose();
+    } else if (role === 'manager') {
+      const managerUser: UserType = {
+        id: 'user-manager',
+        email: 'manager@ibazar.com',
+        name: 'iBazar Sales Manager',
+        role: 'manager',
+        phone: '01888888888',
+        address: 'iBazar Hub, Banani Road 11, Dhaka'
+      };
+      onLogin(managerUser);
       onClose();
     } else {
       const customerUser: UserType = {
@@ -62,6 +73,8 @@ export default function AuthModal({ isOpen, onClose, onLogin, isDarkMode = false
     // Check specific credentials
     if (email === 'admin@ibazar.com' && password === 'admin123') {
       handleQuickLogin('admin');
+    } else if (email === 'manager@ibazar.com' && password === 'manager123') {
+      handleQuickLogin('manager');
     } else if (email === 'customer@test.com' && password === 'customer123') {
       handleQuickLogin('customer');
     } else {
@@ -129,41 +142,58 @@ export default function AuthModal({ isOpen, onClose, onLogin, isDarkMode = false
               <Shield className={`w-4.5 h-4.5 ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`} />
               টেস্ট করার জন্য ওয়ান-ক্লিক সাইন ইন (Quick Testing Access)
             </h3>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-1.5">
               <button
                 id="btn-quick-customer"
                 type="button"
                 onClick={() => handleQuickLogin('customer')}
-                className={`flex flex-col items-center justify-center p-2.5 border rounded-xl text-center transition-all shadow-xs cursor-pointer ${
+                className={`flex flex-col items-center justify-center p-2 border rounded-xl text-center transition-all shadow-xs cursor-pointer ${
                   isDarkMode 
                     ? 'bg-gray-800 border-gray-700 hover:border-emerald-500 hover:bg-gray-750' 
                     : 'bg-white border-emerald-200/60 hover:border-emerald-500 hover:bg-emerald-50/40'
                 }`}
               >
-                <div className={`flex items-center gap-1 font-bold text-xs ${isDarkMode ? 'text-emerald-400' : 'text-emerald-800'}`}>
+                <div className={`flex items-center gap-0.5 font-bold text-[11px] whitespace-nowrap ${isDarkMode ? 'text-emerald-400' : 'text-emerald-800'}`}>
                   <ShoppingBag className="w-3.5 h-3.5" />
                   গ্রাহক লগইন
                 </div>
-                <span className={`text-[10px] mt-0.5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Customer Access</span>
+                <span className={`text-[9px] mt-0.5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Customer Access</span>
+              </button>
+              <button
+                id="btn-quick-manager"
+                type="button"
+                onClick={() => handleQuickLogin('manager')}
+                className={`flex flex-col items-center justify-center p-2 border rounded-xl text-center transition-all shadow-xs cursor-pointer ${
+                  isDarkMode 
+                    ? 'bg-gray-800 border-gray-700 hover:border-emerald-500 hover:bg-gray-750' 
+                    : 'bg-white border-emerald-200/60 hover:border-emerald-500 hover:bg-emerald-50/40'
+                }`}
+              >
+                <div className={`flex items-center gap-0.5 font-bold text-[11px] whitespace-nowrap ${isDarkMode ? 'text-amber-400' : 'text-amber-800'}`}>
+                  <User className="w-3.5 h-3.5 text-amber-500" />
+                  ম্যানেজার লগইন
+                </div>
+                <span className={`text-[9px] mt-0.5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Sales Manager</span>
               </button>
               <button
                 id="btn-quick-admin"
                 type="button"
                 onClick={() => handleQuickLogin('admin')}
-                className={`flex flex-col items-center justify-center p-2.5 border rounded-xl text-center transition-all shadow-xs cursor-pointer ${
+                className={`flex flex-col items-center justify-center p-2 border rounded-xl text-center transition-all shadow-xs cursor-pointer ${
                   isDarkMode 
-                    ? 'bg-gray-800 border-teal-900/70 hover:border-emerald-500 hover:bg-gray-750' 
+                    ? 'bg-gray-800 border-gray-700 hover:border-emerald-500 hover:bg-gray-750' 
                     : 'bg-white border-emerald-200/60 hover:border-emerald-500 hover:bg-emerald-50/40'
                 }`}
               >
-                <div className={`flex items-center gap-1 font-bold text-xs ${isDarkMode ? 'text-teal-400' : 'text-teal-850'}`}>
+                <div className={`flex items-center gap-0.5 font-bold text-[11px] whitespace-nowrap ${isDarkMode ? 'text-teal-400' : 'text-teal-850'}`}>
                   <Shield className="w-3.5 h-3.5" />
                   অ্যাডমিন লগইন
                 </div>
-                <span className={`text-[10px] mt-0.5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Admin Dashboard</span>
+                <span className={`text-[9px] mt-0.5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Admin Dashboard</span>
               </button>
             </div>
-            <p className={`text-[10px] text-center mt-2.5 font-mono ${isDarkMode ? 'text-emerald-400/85' : 'text-emerald-700/80'}`}>
+            <p className={`text-[10px] text-center mt-2.5 font-mono leading-relaxed ${isDarkMode ? 'text-emerald-400/85' : 'text-emerald-700/80'}`}>
+              Manager: manager@ibazar.com (pass: manager123) <br />
               Admin: admin@ibazar.com (pass: admin123)
             </p>
           </div>

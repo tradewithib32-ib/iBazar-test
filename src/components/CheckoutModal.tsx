@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Truck, CreditCard, Banknote, User, Phone, MapPin, Mail, ChevronRight, CheckCircle, Smartphone, AlertCircle, RefreshCw } from 'lucide-react';
+import { ShieldCheck, Truck, CreditCard, Banknote, User, Phone, MapPin, Mail, ChevronRight, CheckCircle, Smartphone, AlertCircle, RefreshCw, Download } from 'lucide-react';
 import { User as UserType, CartItem, PaymentMethod, Order } from '../types';
 
 interface CheckoutModalProps {
@@ -54,6 +54,7 @@ export default function CheckoutModal({
 
   const [validationError, setValidationError] = useState('');
   const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   // Pre-fill user data when modal opens
   useEffect(() => {
@@ -76,7 +77,11 @@ export default function CheckoutModal({
 
   if (!isOpen) return null;
 
-  const subtotal = cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+  const subtotal = cartItems.reduce((acc, item) => {
+    const itemPrice = Number(item.product.price) || 0;
+    const qty = Number(item.quantity) || 1;
+    return acc + itemPrice * qty;
+  }, 0);
   const totalAmount = Math.max(0, subtotal - discountAmount);
 
   // Simple validation for shipping
@@ -185,6 +190,208 @@ export default function CheckoutModal({
       return;
     }
     processFinalOrder('card', 'completed');
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!placedOrder) return;
+    setIsDownloadingPdf(true);
+    setValidationError('');
+    
+    try {
+      // Create a high-DPI canvas (width 800px, height 1000px)
+      const canvas = document.createElement('canvas');
+      canvas.width = 800;
+      canvas.height = 1000;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error("Could not initialize 2D context");
+
+      // 1. Solid Elegant white background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Deep green border
+      ctx.strokeStyle = '#059669';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
+
+      // Light gold inner border
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(16, 16, canvas.width - 32, canvas.height - 32);
+
+      // Header Banner background (Emerald color block)
+      ctx.fillStyle = '#064e3b';
+      ctx.fillRect(25, 25, canvas.width - 50, 100);
+
+      // Brand Title
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 36px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('iBazar Shopping BD', 50, 80);
+
+      ctx.fillStyle = '#34d399';
+      ctx.font = 'bold 15px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('অর্ডার মেমো ও অনলাইন মূল্য পরিশোধের রশিদ (ONLINE PAYMENT RECEIPT & INVOICE)', 50, 105);
+
+      // Receipt Metadata lines
+      ctx.fillStyle = '#4b5563';
+      ctx.font = 'normal 13px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(`চালান আইডি (Invoice ID): ${placedOrder.id}`, 50, 160);
+      ctx.fillText(`ইস্যু তারিখ (Date): ${new Date(placedOrder.createdAt).toLocaleString('bn-BD')}`, 50, 180);
+      ctx.fillText(`পেমেন্ট গেটওয়ে (Gateway): ${placedOrder.paymentMethod.toUpperCase()}`, 50, 200);
+
+      // Status Badge (PAID / SUCCESS)
+      ctx.fillStyle = '#ebfbee'; // Very light green
+      ctx.fillRect(520, 150, 230, 50);
+      ctx.strokeStyle = '#2f9e41'; // Bright green stroke
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(520, 150, 230, 50);
+
+      ctx.fillStyle = '#2f9e41';
+      ctx.font = 'bold 15px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('পেমেন্ট অবস্থা (STATUS):', 540, 172);
+      ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('পরিশোধিত (PAID - SUCCESS)', 540, 192);
+
+      // Header lines division
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(25, 220);
+      ctx.lineTo(775, 220);
+      ctx.stroke();
+
+      // Client Address and Delivery Info section
+      ctx.fillStyle = '#f9fafb';
+      ctx.fillRect(25, 235, canvas.width - 50, 95);
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(25, 235, canvas.width - 50, 95);
+
+      ctx.fillStyle = '#065f46';
+      ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('ডেলিভারি গন্তব্য ও গ্রাহকের তথ্য (SHIPPING & CUSTOMER DETAILS)', 40, 260);
+
+      ctx.fillStyle = '#374151';
+      ctx.font = 'normal 13px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(`গ্রাহকের নাম (Customer Name): ${placedOrder.customerName}`, 40, 285);
+      ctx.fillText(`মোবাইল নাম্বার (Phone Number): ${placedOrder.phone}`, 40, 310);
+      ctx.fillText(`প্রদানকৃত ইমেইল (User Email): ${placedOrder.customerEmail}`, 400, 285);
+      ctx.fillText(`ঠিকানা (Address): ${placedOrder.address}`, 400, 310);
+
+      // Section label
+      ctx.fillStyle = '#111827';
+      ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('ক্রয়কৃত পণ্যের তালিকা (ORDER ITEMS SPECIFICATION)', 25, 360);
+
+      // Table Headers background
+      ctx.fillStyle = '#059669';
+      ctx.fillRect(25, 375, canvas.width - 50, 32);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(' নং (No.)', 40, 395);
+      ctx.fillText('পণ্য বিবরণী ও শিরোনাম (Purchased Product Name)', 100, 395);
+      ctx.fillText('একক মূল্য (Unit Price)', 480, 395);
+      ctx.fillText('পরিমাণ (Qty)', 600, 395);
+      ctx.fillText('মোট মূল্য (Subtotal)', 680, 395);
+
+      let currentY = 430;
+      placedOrder.items.forEach((item, index) => {
+        // Alternating background colors for rows
+        if (index % 2 === 1) {
+          ctx.fillStyle = '#fafdff';
+          ctx.fillRect(25, currentY - 20, canvas.width - 50, 30);
+        }
+
+        ctx.fillStyle = '#374151';
+        ctx.font = 'normal 12px "Segoe UI", Arial, sans-serif';
+        ctx.fillText(`${index + 1}`, 40, currentY);
+        ctx.fillText(item.name || 'Product Premium Item', 100, currentY);
+        ctx.fillText(`৳${item.price.toLocaleString('bn')}`, 480, currentY);
+        ctx.fillText(`${item.quantity}টি`, 600, currentY);
+        ctx.fillText(`৳${(item.price * item.quantity).toLocaleString('bn')}`, 680, currentY);
+
+        ctx.strokeStyle = '#e5e7eb';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(25, currentY + 10);
+        ctx.lineTo(775, currentY + 10);
+        ctx.stroke();
+
+        currentY += 35;
+      });
+
+      // Price Calculations panel
+      ctx.fillStyle = '#f3f4f6';
+      ctx.fillRect(490, currentY + 15, 285, 90);
+      ctx.strokeStyle = '#d1d5db';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(490, currentY + 15, 285, 90);
+
+      ctx.fillStyle = '#4b5563';
+      ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('সর্বমোট মূল্য (Subtotal):', 505, currentY + 40);
+      ctx.fillText('বাংলাদেশ ডেলিভারি ভ্যাট (VAT):', 505, currentY + 65);
+      
+      ctx.fillStyle = '#065f46';
+      ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('পরিশোধিত মোট (Net Paid Amount):', 505, currentY + 90);
+
+      ctx.fillStyle = '#111827';
+      ctx.font = 'bold 13px "Courier New", monospace';
+      ctx.fillText(`৳${placedOrder.totalAmount.toLocaleString('bn')}`, 690, currentY + 40);
+      ctx.fillText('৳০ (মুক্ত)', 690, currentY + 65);
+      
+      ctx.fillStyle = '#047857';
+      ctx.font = 'bold 15px "Courier New", monospace';
+      ctx.fillText(`৳${placedOrder.totalAmount.toLocaleString('bn')}`, 690, currentY + 90);
+
+      // Official Stamp / Signature Seal
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.arc(160, currentY + 60, 48, 0, 2 * Math.PI);
+      ctx.stroke();
+
+      ctx.fillStyle = '#10b981';
+      ctx.font = 'bold 11px "Courier New", monospace';
+      ctx.fillText('iBazar Shopping', 112, currentY + 48);
+      ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('PAID - নিশ্চিত', 113, currentY + 64);
+      ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('সফল ক্যাশ রিসিভড', 113, currentY + 78);
+
+      // Support Footer Note
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(25, 920);
+      ctx.lineTo(775, 920);
+      ctx.stroke();
+
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = 'italic 11px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('ধন্যবাদ আপনার আস্থার জন্য! কোনো প্রয়োজনে ইমেইল করুন: customer@ibazar.com অথবা কল করুন হেল্পলাইনে।', 40, 940);
+      ctx.font = 'normal 9px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('This is an automatically generated electronic payment report by iBazar systems. No physical signature or stamp required.', 40, 960);
+
+      // Load jsPDF dynamically and add the canvas image
+      const { jsPDF } = await import('jspdf');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+      pdf.save(`iBazar_Payment_Receipt_${placedOrder.id}.pdf`);
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      setValidationError("দুঃখিত, পিডিএফ রিপোর্ট তৈরি করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।");
+    } finally {
+      setIsDownloadingPdf(false);
+    }
   };
 
   return (
@@ -702,7 +909,24 @@ export default function CheckoutModal({
 
         {/* Checkout Success Screen */}
         {step === 'success' && placedOrder && (
-          <div className="p-8 flex flex-col items-center text-center space-y-5 h-full overflow-y-auto">
+          <div className="p-8 flex flex-col items-center text-center space-y-5 h-full overflow-y-auto relative">
+            {/* PDF Report Download Button (indicated by user request) */}
+            <button
+              id="download-invoice-btn"
+              type="button"
+              onClick={handleDownloadPDF}
+              disabled={isDownloadingPdf}
+              title="মূল্য পরিশোধের রশিদ ডাউনলোড করুন"
+              className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 disabled:bg-gray-100 disabled:text-gray-400 text-emerald-700 hover:text-emerald-800 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold shadow-xs cursor-pointer transition-all active:scale-95 duration-200"
+            >
+              {isDownloadingPdf ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span>রশিদ ডাউনলোড (PDF)</span>
+            </button>
+
             <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center border border-emerald-100 shadow-xs animate-bounce">
               <CheckCircle className="w-10 h-10 text-emerald-600" />
             </div>

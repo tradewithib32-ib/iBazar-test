@@ -12,6 +12,7 @@ interface ProductDetailModalProps {
   product: Product;
   onClose: () => void;
   onAddToCart: (product: Product) => void;
+  currentUserRole?: string;
 }
 
 // Robust helper to parse Google Drive URLs into embeddable preview links
@@ -46,7 +47,7 @@ function getGoogleDriveEmbedUrl(url: string): string | null {
   return url;
 }
 
-export default function ProductDetailModal({ product, onClose, onAddToCart }: ProductDetailModalProps) {
+export default function ProductDetailModal({ product, onClose, onAddToCart, currentUserRole }: ProductDetailModalProps) {
   const [activeMedia, setActiveMedia] = useState<'image' | 'video'>('image');
   const [activeImage, setActiveImage] = useState<string>(product.image);
 
@@ -179,17 +180,43 @@ export default function ProductDetailModal({ product, onClose, onAddToCart }: Pr
             </div>
 
             {/* Price section */}
-            <div className="bg-emerald-50/50 border border-emerald-100/30 rounded-2xl p-4 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wider block mb-0.5">মূল্য (Price in BDT)</span>
-                <span className="text-xl font-black text-emerald-855 font-mono">৳{product.price.toLocaleString('bn')}</span>
-              </div>
-              <div className="text-right">
-                <span className="text-[9px] text-gray-400 font-bold block uppercase mb-1">স্টক বিবরণ</span>
-                <span className="text-[11px] bg-white border border-gray-150 px-2 py-0.5 rounded-md font-bold text-gray-600">
-                  {product.stock <= 0 ? 'স্টক আউট' : `${product.stock} টি মজুদ আছে`}
-                </span>
-              </div>
+            <div className={`border rounded-2xl p-4 ${currentUserRole === 'manager' ? 'bg-amber-50/40 border-amber-200/50 space-y-3' : 'bg-emerald-50/50 border-emerald-100/30 flex items-center justify-between'}`}>
+              {currentUserRole === 'manager' ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4 w-full">
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">বেস প্রাইস (Base Price)</span>
+                      <span className="text-base font-bold text-gray-650 font-mono">৳{product.price.toLocaleString('bn')}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider block mb-0.5 font-sans">ম্যানেজার বিক্রয় মূল্য (Sales Price)</span>
+                      <span className="text-lg font-extrabold text-amber-900 font-mono">৳{(product.managerPrice ?? product.price).toLocaleString('bn')}</span>
+                    </div>
+                  </div>
+                  <div className="border-t border-dashed border-amber-200 pt-2 flex justify-between items-center bg-amber-500/10 p-2.5 rounded-xl w-full">
+                    <div>
+                      <span className="text-[10px] text-amber-850 font-bold block">আপনার লাভ (Manager Profit)</span>
+                      <span className="text-[11px] text-gray-500 font-semibold font-mono">৳{product.price.toLocaleString('bn')} - ৳{(product.managerPrice ?? product.price).toLocaleString('bn')}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-black text-emerald-700 font-mono">৳{Math.max(0, product.price - (product.managerPrice ?? product.price)).toLocaleString('bn')}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <span className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wider block mb-0.5">মূল্য (Price in BDT)</span>
+                    <span className="text-xl font-black text-emerald-855 font-mono">৳{product.price.toLocaleString('bn')}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[9px] text-gray-400 font-bold block uppercase mb-1">স্টক বিবরণ</span>
+                    <span className="text-[11px] bg-white border border-gray-150 px-2 py-0.5 rounded-md font-bold text-gray-600">
+                      {product.stock <= 0 ? 'স্টক আউট' : `${product.stock} টি মজুদ আছে`}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Description detail */}
@@ -215,20 +242,22 @@ export default function ProductDetailModal({ product, onClose, onAddToCart }: Pr
 
           {/* Checkout/Add logic */}
           <div className="border-t border-gray-100 pt-5 mt-6 flex gap-3 shrink-0">
-            <button
-              onClick={() => {
-                onAddToCart(product);
-                // The requirements say adding to cart inside popup should just increment the number without triggering or keeping the popup closed if specified, we will keep detail popup open for further explorer but show instant tactile state or let them view cart, we will just increment.
-              }}
-              disabled={product.stock <= 0}
-              className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 text-white disabled:text-gray-400 font-bold rounded-2xl shadow-md shadow-emerald-600/10 transition-all flex items-center justify-center gap-2 cursor-pointer transform active:scale-98"
-            >
-              <ShoppingCart className="w-4 h-4" />
-              কার্টে যোগ করুন (Add to Cart)
-            </button>
+            {currentUserRole !== 'admin' && (
+              <button
+                onClick={() => {
+                  onAddToCart(product);
+                  // The requirements say adding to cart inside popup should just increment the number without triggering or keeping the popup closed if specified, we will keep detail popup open for further explorer but show instant tactile state or let them view cart, we will just increment.
+                }}
+                disabled={product.stock <= 0}
+                className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 text-white disabled:text-gray-400 font-bold rounded-2xl shadow-md shadow-emerald-600/10 transition-all flex items-center justify-center gap-2 cursor-pointer transform active:scale-98"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                কার্টে যোগ করুন (Add to Cart)
+              </button>
+            )}
             <button
               onClick={onClose}
-              className="py-3 px-4 border border-gray-200 hover:bg-gray-50 text-gray-550 font-bold rounded-2xl text-xs cursor-pointer transition shrink-0"
+              className={`py-3 px-4 border border-gray-200 hover:bg-gray-50 text-gray-550 font-bold rounded-2xl text-xs cursor-pointer transition shrink-0 ${currentUserRole === 'admin' ? 'w-full' : ''}`}
             >
               বন্ধ করুন
             </button>
