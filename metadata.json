@@ -1,0 +1,8 @@
+{
+  "name": "iBazar E-Commerce",
+  "description": "A modern, easy-to-use e-commerce application featuring a shopping cart, standard mobile/card payment gateway simulator, customer login, real-time order tracking, comprehensive admin panel, and simulated email confirmation and status updates.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

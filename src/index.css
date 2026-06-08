@@ -1,0 +1,186 @@
+@import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Hind Siliguri", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Custom modern scrollbar rules for elegant drawers */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 100px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Selection aesthetics */
+::selection {
+  background-color: #a7f3d0;
+  color: #064e3b;
+}
+
+/* Beautiful automatic Dark/Black Mode styles when .dark class is active on root */
+.dark {
+  color-scheme: dark;
+}
+
+.dark .min-h-screen, .dark body {
+  background-color: #030712 !important; /* bg-gray-950 */
+  color: #f3f4f6 !important; /* text-gray-100 */
+}
+
+/* Header adapts to dark */
+.dark header {
+  background-color: rgba(17, 24, 39, 0.95) !important; /* bg-gray-900/95 */
+  border-color: #1f2937 !important; /* border-gray-800 */
+}
+
+.dark header h1 {
+  color: #ffffff !important;
+}
+
+/* Let's make cards and blocks adapt to rich obsidian black */
+.dark .bg-white {
+  background-color: #111827 !important; /* bg-gray-900 */
+  border-color: #1f2937 !important; /* border-gray-800 */
+  color: #f3f4f6 !important;
+}
+
+.dark .text-gray-950, 
+.dark .text-gray-900, 
+.dark .text-gray-800, 
+.dark .text-gray-700,
+.dark .text-gray-650 {
+  color: #f3f4f6 !important;
+}
+
+.dark .text-gray-600 {
+  color: #e5e7eb !important;
+}
+
+.dark .text-gray-500, 
+.dark .text-gray-400, 
+.dark .text-gray-405 {
+  color: #9ca3af !important; /* text-gray-400 */
+}
+
+/* Inner containers bg-gray-50 or bg-gray-55 */
+.dark .bg-gray-50, 
+.dark .bg-gray-55, 
+.dark .bg-gray-100 {
+  background-color: #1f2937 !important; /* bg-gray-800 */
+  border-color: #374151 !important; /* border-gray-700 */
+  color: #f3f4f6 !important;
+}
+
+.dark .border-gray-50, 
+.dark .border-gray-100, 
+.dark .border-gray-150, 
+.dark .border-gray-150\/70,
+.dark .border-gray-150\/80,
+.dark .border-gray-200 {
+  border-color: #1f2937 !important; /* border-gray-800 */
+}
+
+/* Hover classes in dark mode */
+.dark .hover\:bg-gray-50:hover, 
+.dark .hover\:bg-gray-100:hover,
+.dark .hover\:bg-gray-100\/60:hover {
+  background-color: #1f2937 !important;
+}
+
+.dark .hover\:bg-emerald-50:hover {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+}
+
+/* Badges and tags alignment */
+.dark .bg-emerald-50, 
+.dark .bg-emerald-50\/10,
+.dark .bg-emerald-55\/15 {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+  color: #34d399 !important; /* text-emerald-400 */
+  border-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+.dark .text-emerald-800, 
+.dark .text-emerald-700, 
+.dark .text-emerald-950 {
+  color: #34d399 !important;
+}
+
+.dark input, 
+.dark select, 
+.dark textarea {
+  background-color: #111827 !important;
+  border-color: #374151 !important;
+  color: #ffffff !important;
+}
+
+.dark input::placeholder, 
+.dark select::placeholder, 
+.dark textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+/* Admin Dashboard Specific Colors */
+.dark .bg-emerald-50\/45, 
+.dark .bg-emerald-50\/50, 
+.dark .bg-green-55\/10 {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+  border-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+.dark .bg-sky-50\/45 {
+  background-color: rgba(14, 165, 233, 0.1) !important;
+  border-color: rgba(14, 165, 233, 0.2) !important;
+}
+.dark .text-sky-850, .dark .text-sky-800 {
+  color: #38bdf8 !important;
+}
+
+.dark .bg-orange-50\/50 {
+  background-color: rgba(249, 115, 22, 0.1) !important;
+  border-color: rgba(249, 115, 22, 0.2) !important;
+}
+.dark .text-orange-700, .dark .text-orange-850 {
+  color: #fb923c !important;
+}
+
+.dark .bg-amber-50\/45 {
+  background-color: rgba(245, 158, 11, 0.1) !important;
+  border-color: rgba(245, 158, 11, 0.2) !important;
+}
+.dark .text-amber-700 {
+  color: #facc15 !important;
+}
+
+/* Modals & shadows */
+.dark .shadow-2xl, 
+.dark .shadow-xl {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
+}
+
+.dark footer {
+  background-color: #111827 !important;
+  border-color: #1f2937 !important;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
