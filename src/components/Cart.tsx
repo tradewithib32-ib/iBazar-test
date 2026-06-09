@@ -103,32 +103,32 @@ export default function Cart({
         className="relative bg-white w-full max-w-md h-full flex flex-col shadow-2xl text-gray-800 z-10"
       >
         {/* Header */}
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+        <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-gray-900">
           <div className="flex items-center gap-2">
             <ShoppingCart className="w-5 h-5 text-emerald-600" />
-            <h2 className="text-lg font-bold text-gray-900">আপনার কার্ট (Your Cart)</h2>
-            <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">আপনার কার্ট (Your Cart)</h2>
+            <span className="bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
               {cartItems.reduce((acc, item) => acc + item.quantity, 0)}
             </span>
           </div>
           <button
             id="close-cart-btn"
             onClick={onClose}
-            className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
+            className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-all"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content list */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-white dark:bg-gray-950">
           {cartItems.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-4">
-              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 border border-gray-100">
-                <ShoppingCart className="w-8 h-8 text-gray-300" />
+              <div className="w-16 h-16 bg-gray-50 dark:bg-gray-900 rounded-full flex items-center justify-center mb-4 border border-gray-100 dark:border-gray-800">
+                <ShoppingCart className="w-8 h-8 text-gray-300 dark:text-gray-600" />
               </div>
-              <h3 className="font-semibold text-gray-700">কার্টটি খালি রয়েছে।</h3>
-              <p className="text-gray-400 text-sm mt-1">পছন্দের প্রোডাক্টটি কার্টে যুক্ত করে শপিং শুরু করুন!</p>
+              <h3 className="font-semibold text-gray-700 dark:text-gray-200">কার্টটি খালি রয়েছে।</h3>
+              <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">পছন্দের প্রোডাক্টটি কার্টে যুক্ত করে শপিং শুরু করুন!</p>
               <button
                 onClick={onClose}
                 className="mt-6 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-xl transition-all shadow-xs"
@@ -140,9 +140,9 @@ export default function Cart({
             cartItems.map((item) => (
               <div
                 key={item.product.id}
-                className="flex flex-row items-center sm:items-start gap-4 p-4 rounded-2xl border border-gray-100 hover:border-emerald-100 transition-all relative overflow-hidden group shadow-sm bg-white"
+                className="flex flex-row items-center sm:items-start gap-4 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 hover:border-emerald-100 dark:hover:border-emerald-900 transition-all relative overflow-hidden group shadow-sm bg-white dark:bg-gray-900"
               >
-                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gray-50 rounded-xl overflow-hidden shrink-0 border border-gray-150 relative">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gray-50 dark:bg-gray-800 rounded-xl overflow-hidden shrink-0 border border-gray-150 dark:border-gray-700 relative">
                   <img
                     src={item.product.image}
                     alt={item.product.name}
@@ -153,26 +153,26 @@ export default function Cart({
 
                 <div className="flex-1 flex flex-col gap-2 relative">
                   <div className="pr-6">
-                    <h4 className="font-bold text-sm text-gray-900 leading-tight line-clamp-2" title={item.product.name}>{item.product.name}</h4>
-                    <span className="text-[11px] text-gray-500 font-medium italic mt-1 block tracking-tight">{item.product.category}</span>
+                    <h4 className="font-bold text-sm text-gray-900 dark:text-white leading-tight line-clamp-2" title={item.product.name}>{item.product.name}</h4>
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400 font-medium italic mt-1 block tracking-tight">{item.product.category}</span>
                   </div>
 
                   <div className="flex flex-col gap-2.5 mt-auto">
-                    <span className="text-emerald-700 font-extrabold text-sm tracking-tight">৳{Number(item.product.price).toLocaleString('bn')}</span>
+                    <span className="text-emerald-700 dark:text-emerald-400 font-extrabold text-sm tracking-tight">৳{Number(item.product.price).toLocaleString('bn')}</span>
 
                     {/* Quantity Selector */}
-                    <div className="flex items-center gap-1.5 bg-gray-50 p-1.5 rounded-lg border border-gray-200 self-start">
+                    <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800 p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 self-start">
                       <button
                         onClick={() => onUpdateQuantity(item.product.id, Math.max(1, item.quantity - 1))}
-                        className="p-1 rounded-md bg-white border border-gray-200 hover:bg-gray-100 text-gray-600 disabled:opacity-40 transition-all"
+                        className="p-1 rounded-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 disabled:opacity-40 transition-all"
                         disabled={item.quantity <= 1}
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="text-xs font-bold font-mono px-2 min-w-4 text-center text-gray-800">{item.quantity}</span>
+                      <span className="text-xs font-bold font-mono px-2 min-w-4 text-center text-gray-800 dark:text-gray-200">{item.quantity}</span>
                       <button
                         onClick={() => onUpdateQuantity(item.product.id, Math.max(Number(item.product.stock) || 10, item.quantity + 1))}
-                        className="p-1 rounded-md bg-white border border-gray-200 hover:bg-gray-100 text-gray-600 disabled:opacity-40 transition-all"
+                        className="p-1 rounded-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 disabled:opacity-40 transition-all"
                         disabled={item.quantity >= (Number(item.product.stock) || 10)}
                       >
                         <Plus className="w-3.5 h-3.5" />
@@ -183,7 +183,7 @@ export default function Cart({
 
                 <button
                   onClick={() => onRemoveFromCart(item.product.id)}
-                  className="absolute right-3 top-3 p-1.5 bg-red-50 sm:bg-transparent rounded-full sm:hover:bg-red-50 text-red-400 sm:text-gray-300 sm:hover:text-red-500 transition-all"
+                  className="absolute right-3 top-3 p-1.5 bg-red-50 dark:bg-red-900/20 sm:bg-transparent rounded-full sm:hover:bg-red-50 dark:sm:hover:bg-red-900/20 text-red-400 sm:text-gray-300 sm:hover:text-red-500 transition-all"
                   title="Remove item"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -195,79 +195,27 @@ export default function Cart({
 
         {/* Promo Codes & Total Summary */}
         {cartItems.length > 0 && (
-          <div className="p-6 border-t border-gray-100 space-y-4 bg-gray-50/50">
-            {/* Promo Code input */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-gray-500 tracking-wider uppercase flex items-center gap-1">
-                <Tag className="w-3.5 h-3.5 text-emerald-600" />
-                কুপন কোড (Promo Code)
-              </label>
-              {appliedPromo ? (
-                <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-800 font-semibold">
-                  <span className="flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-emerald-600 animate-spin" />
-                    প্রযুক্ত কোড: {appliedPromo}
-                  </span>
-                  <button
-                    onClick={removePromo}
-                    className="text-emerald-900 border border-emerald-200 bg-white hover:bg-emerald-100/50 px-2 py-0.5 rounded-md transition"
-                  >
-                    বাদ দিন
-                  </button>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <input
-                    value={promoCode}
-                    onChange={(e) => setPromoCode(e.target.value)}
-                    placeholder="কোড দিন (যেমন: WELCOME20, EID500)"
-                    className="flex-1 px-3 py-2 bg-white text-xs border border-gray-200 rounded-xl focus:border-emerald-500 outline-none uppercase font-mono tracking-wider"
-                  />
-                  <button
-                    onClick={applyPromo}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-xl transform active:scale-95 transition-all"
-                  >
-                    প্রয়োগ করুন
-                  </button>
-                </div>
-              )}
-              {promoError && (
-                <p className="text-red-500 text-[10px] italic">{promoError}</p>
-              )}
-              {!appliedPromo && !promoError && (
-                <p className="text-[10px] text-gray-400 font-sans">
-                  *ট্রাই করুন: <strong className="font-semibold text-emerald-600">WELCOME20</strong> (২০% ডিসকাউন্ট) অথবা <strong className="font-semibold text-emerald-600">EID500</strong> (৫০০৳ ডিসকাউন্ট)
-                  {isManager && <span className="block mt-1">ম্যানেজার: আপনি আপনার ইউজারনেম (<strong className="font-semibold text-emerald-600">{managerUsername}</strong>) ব্যবহার করে ডিসকাউন্ট পেতে পারেন।</span>}
-                </p>
-              )}
-            </div>
-
+          <div className="p-6 border-t border-gray-100 dark:border-gray-800 space-y-4 bg-gray-50/50 dark:bg-gray-900/50">
             {/* Calculations */}
-            <div className="space-y-2 border-t border-gray-100 pt-3">
-              <div className="flex justify-between text-sm text-gray-500">
+            <div className="space-y-2 pt-1">
+              <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                 <span>উপ-মোট (Subtotal):</span>
-                <span>৳{subtotal.toLocaleString('bn')}</span>
+                <span className="font-semibold text-gray-800 dark:text-gray-200">৳{subtotal.toLocaleString('bn')}</span>
               </div>
-              {discount > 0 && (
-                <div className="flex justify-between text-sm text-emerald-600 font-medium">
-                  <span>ডিসকাউন্ট (Discount):</span>
-                  <span>-৳{discount.toLocaleString('bn')}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-sm text-gray-500">
+              <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                 <span>ডেলিভারি চার্জ (Delivery):</span>
-                <span className="font-bold text-gray-700">ফ্রি (Free)</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">ফ্রি (Free)</span>
               </div>
-              <div className="flex justify-between text-base font-bold text-gray-900 border-t border-gray-200/60 pt-2">
+              <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white border-t border-gray-200/60 dark:border-gray-700 pt-2 mt-2">
                 <span>মোট বিল (Total):</span>
-                <span className="text-emerald-700 font-extrabold text-lg">৳{finalTotal.toLocaleString('bn')}</span>
+                <span className="text-emerald-700 dark:text-emerald-400 font-extrabold text-lg">৳{subtotal.toLocaleString('bn')}</span>
               </div>
             </div>
 
             {/* Pay Button */}
             <button
               id="cart-checkout-btn"
-              onClick={() => onCheckout(discount, appliedPromo.split(' ')[0])}
+              onClick={() => onCheckout(0, '')}
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3.5 rounded-2xl shadow-md hover:shadow-lg transition-all text-sm text-center flex items-center justify-center gap-1.5 cursor-pointer transform active:scale-99"
             >
               চেকআউট করুন (Checkout & Pay)

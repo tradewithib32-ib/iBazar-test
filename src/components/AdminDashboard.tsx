@@ -10,17 +10,21 @@ import {
   Hourglass, Truck, MailCheck, AlertTriangle, Search, FileText, Check, X, ShieldAlert,
   Upload, Video, Image, User, Download, Phone, MapPin, Mail, RefreshCw, TrendingUp
 } from 'lucide-react';
-import { Product, Order, OrderStatus, EmailNotification, User as UserType } from '../types';
+import { Product, Order, OrderStatus, EmailNotification, User as UserType, WithdrawalRequest } from '../types';
 
 interface AdminDashboardProps {
   products: Product[];
   orders: Order[];
+  withdrawalRequests: WithdrawalRequest[];
   emailLogs: EmailNotification[];
   onAddProduct: (product: Product) => void;
   onUpdateProduct: (product: Product) => void;
   onDeleteProduct: (productId: string) => void;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
   onDeleteOrder: (orderId: string) => void;
+  onWithdrawRequest: (request: WithdrawalRequest) => void;
+  onUpdateWithdrawalStatus: (requestId: string, status: 'approved' | 'rejected') => void;
+  onDeleteWithdrawalRequest: (requestId: string) => void;
   isDarkMode?: boolean;
   currentUser?: UserType | null;
 }
@@ -28,22 +32,27 @@ interface AdminDashboardProps {
 export default function AdminDashboard({
   products,
   orders,
+  withdrawalRequests,
   emailLogs,
   onAddProduct,
   onUpdateProduct,
   onDeleteProduct,
   onUpdateOrderStatus,
   onDeleteOrder,
+  onWithdrawRequest,
+  onUpdateWithdrawalStatus,
+  onDeleteWithdrawalRequest,
   isDarkMode = false,
   currentUser = null
 }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'stats' | 'products' | 'orders' | 'emails'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'products' | 'orders' | 'emails' | 'withdrawals'>('stats');
   
   // Search states
   const [productQuery, setProductQuery] = useState('');
   const [orderQuery, setOrderQuery] = useState('');
   const [downloadingOrderId, setDownloadingOrderId] = useState<string | null>(null);
   const [orderToDelete, setOrderToDelete] = useState<string | null>(null);
+  const [withdrawalToDelete, setWithdrawalToDelete] = useState<string | null>(null);
 
   const handleDownloadReceiptPDF = async (placedOrder: Order) => {
     setDownloadingOrderId(placedOrder.id);
@@ -246,7 +255,17 @@ export default function AdminDashboard({
 
   // Modals / Form editing state
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isProfileInquiryModalOpen, setIsProfileInquiryModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+
+  // States for Withdrawal
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [isWithdrawHistoryModalOpen, setIsWithdrawHistoryModalOpen] = useState(false);
+  const [showWithdrawSuccessPopup, setShowWithdrawSuccessPopup] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState<number | ''>('');
+  const [withdrawMethod, setWithdrawMethod] = useState<'bkash' | 'nagad'>('bkash');
+  const [withdrawAccount, setWithdrawAccount] = useState('');
 
   // Form states for Product Add/Edit
   const [prodName, setProdName] = useState('');
@@ -627,10 +646,11 @@ export default function AdminDashboard({
 
     // Calculate overall estimated profit achieved by the manager for these sales
     const totalManagerProfit = managerOrders.reduce((acc, o) => {
+      if (o.orderStatus === 'pending' || o.orderStatus === 'cancelled') return acc;
       return acc + o.items.reduce((sum, item) => {
         const prod = products.find(p => p.id === item.productId);
-        const originalPrice = prod ? prod.price : item.price;
-        const profitPerUnit = Math.max(0, originalPrice - item.price);
+        const managerPrice = prod?.managerPrice || item.price;
+        const profitPerUnit = Math.max(0, item.price - managerPrice);
         return sum + (profitPerUnit * item.quantity);
       }, 0);
     }, 0);
@@ -639,6 +659,43 @@ export default function AdminDashboard({
       o => o.orderStatus === 'pending' || o.orderStatus === 'processing' || o.orderStatus === 'shipped'
     ).length;
 
+    const myWithdrawals = withdrawalRequests.filter(w => w.managerId === currentUser?.id);
+    const totalWithdrawnOrPending = myWithdrawals.reduce((sum, w) => sum + (w.status !== 'rejected' ? w.amount : 0), 0);
+    const availableBalance = Math.max(0, totalManagerProfit - totalWithdrawnOrPending);
+
+    const handleWithdrawSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      const amount = Number(withdrawAmount);
+      if (amount < 100 || amount > 100000) {
+        alert("উত্তোলনের পরিমাণ ১০০ থেকে ১,০০,০০০ টাকার মধ্যে হতে হবে। (Amount must be between 100 - 100,000)");
+        return;
+      }
+      if (amount > availableBalance) {
+        alert("আপনার পর্যাপ্ত ব্যালেন্স নেই। (Insufficient balance)");
+        return;
+      }
+      if (!withdrawAccount || withdrawAccount.length < 11) {
+        alert("সঠিক অ্যাকাউন্ট নাম্বার দিন। (Enter a valid account number)");
+        return;
+      }
+
+      onWithdrawRequest({
+        id: `wd-${Date.now()}`,
+        managerId: currentUser.id,
+        managerName: currentUser.name,
+        amount,
+        method: withdrawMethod,
+        accountNumber: withdrawAccount,
+        status: 'pending',
+        requestedAt: new Date().toISOString()
+      });
+
+      setIsWithdrawModalOpen(false);
+      setWithdrawAmount('');
+      setWithdrawAccount('');
+      setShowWithdrawSuccessPopup(true);
+    };
+
     return (
       <div id="manager-dashboard-container" className={`rounded-3xl border shadow-xs overflow-hidden transition-colors duration-300 ${
         isDarkMode 
@@ -646,7 +703,7 @@ export default function AdminDashboard({
           : 'bg-white border-gray-150/80 text-gray-800'
       }`}>
         {/* Manager Top banner */}
-        <div className="p-6 bg-gradient-to-r from-teal-700 via-teal-800 to-indigo-800 text-white flex items-center justify-between">
+        <div className="p-6 bg-gradient-to-r from-teal-700 via-teal-800 to-indigo-800 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <span className="bg-white/10 text-white/90 px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 w-max mb-1.5 border border-white/10">
               <ShieldAlert className="w-3.5 h-3.5 text-teal-250 animate-pulse" />
@@ -655,47 +712,65 @@ export default function AdminDashboard({
             <h3 className="text-xl font-bold tracking-tight">স্বাগতম, {currentUser.name}!</h3>
             <p className="text-xs text-teal-100/90 mt-0.5">আপনার করা বিক্রয়, কমিশন এবং লভ্যাংশ রিয়েল-টাইমে ট্র্যাক করুন</p>
           </div>
+          <div className="flex items-center gap-2 flex-wrap sm:gap-3">
+            <div className="bg-emerald-950/40 border border-emerald-400/30 px-5 py-2.5 rounded-2xl flex flex-col items-center">
+              <span className="text-[10px] text-teal-100 font-bold uppercase tracking-widest">ব্যালেন্স (Balance)</span>
+              <span className="text-lg font-black font-mono mt-0.5 text-white">৳{availableBalance.toLocaleString('bn')}</span>
+            </div>
+            <button
+              onClick={() => setIsWithdrawHistoryModalOpen(true)}
+              className="bg-teal-700/50 hover:bg-teal-600/50 text-white border border-teal-400/30 px-5 py-4 rounded-2xl font-bold text-sm shadow-md transition-all active:scale-95 flex items-center gap-2"
+            >
+              <FileText className="w-5 h-5" /> History (ইতিহাস)
+            </button>
+            <button
+              onClick={() => setIsWithdrawModalOpen(true)}
+              className="bg-teal-500 hover:bg-teal-400 text-white border border-teal-400 px-5 py-[18px] rounded-2xl font-bold text-sm shadow-md transition-all active:scale-95 flex items-center gap-2"
+            >
+              <DollarSign className="w-5 h-5" /> Withdraw (উত্তোলন)
+            </button>
+          </div>
         </div>
 
         <div className="p-6 md:p-8 space-y-6">
           {/* Manager metrics grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="bg-sky-50/45 p-5 rounded-2xl border border-sky-100/60 flex items-center justify-between dark:bg-sky-950/20 dark:border-sky-900/40">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-sky-50 p-5 rounded-2xl border border-sky-100 flex items-center justify-between dark:bg-sky-950/30 dark:border-sky-900/50">
               <div>
-                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest block">মোট বিক্রয়মূল্য (Sales)</span>
-                <span className="text-2xl font-black text-sky-800 dark:text-sky-400 font-mono tracking-tight mt-1 block">৳{totalRetailVal.toLocaleString('bn')}</span>
+                <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest block">মোট বিক্রয়মূল্য (Sales)</span>
+                <span className="text-2xl font-black text-sky-900 dark:text-sky-300 font-mono tracking-tight mt-1 block">৳{totalRetailVal.toLocaleString('bn')}</span>
               </div>
-              <div className="w-11 h-11 bg-sky-600/10 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400 rounded-xl flex items-center justify-center">
+              <div className="w-11 h-11 bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-400 rounded-xl flex items-center justify-center">
                 <ShoppingCart className="w-5 h-5" />
               </div>
             </div>
 
-            <div className="bg-emerald-50/45 p-5 rounded-2xl border border-emerald-100/60 flex items-center justify-between dark:bg-emerald-950/20 dark:border-emerald-900/40">
+            <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 flex items-center justify-between dark:bg-emerald-950/30 dark:border-emerald-900/50">
               <div>
-                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest block">আপনার ক্রয়মূল্য (Cost)</span>
-                <span className="text-2xl font-black text-emerald-800 dark:text-emerald-400 font-mono tracking-tight mt-1 block">৳{totalCost.toLocaleString('bn')}</span>
+                <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest block">আপনার ক্রয়মূল্য (Cost)</span>
+                <span className="text-2xl font-black text-emerald-900 dark:text-emerald-300 font-mono tracking-tight mt-1 block">৳{totalCost.toLocaleString('bn')}</span>
               </div>
-              <div className="w-11 h-11 bg-emerald-600/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 rounded-xl flex items-center justify-center">
+              <div className="w-11 h-11 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-400 rounded-xl flex items-center justify-center">
                 <DollarSign className="w-5 h-5" />
               </div>
             </div>
 
-            <div className="bg-amber-50/45 p-5 rounded-2xl border border-amber-100/60 flex items-center justify-between dark:bg-amber-950/20 dark:border-amber-900/40">
+            <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100 flex items-center justify-between dark:bg-amber-950/30 dark:border-amber-900/50">
               <div>
-                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest block">অর্জিত লভ্যাংশ (Net Profit)</span>
-                <span className="text-2xl font-black text-amber-750 dark:text-amber-400 font-mono tracking-tight mt-1 block">৳{totalManagerProfit.toLocaleString('bn')}</span>
+                <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest block">অর্জিত লভ্যাংশ (Net Profit)</span>
+                <span className="text-2xl font-black text-amber-900 dark:text-amber-300 font-mono tracking-tight mt-1 block">৳{totalManagerProfit.toLocaleString('bn')}</span>
               </div>
-              <div className="w-11 h-11 bg-amber-600/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 rounded-xl flex items-center justify-center">
+              <div className="w-11 h-11 bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-400 rounded-xl flex items-center justify-center">
                 <TrendingUp className="w-5 h-5" />
               </div>
             </div>
 
-            <div className="bg-teal-50/45 p-5 rounded-2xl border border-teal-100/60 flex items-center justify-between dark:bg-teal-950/20 dark:border-teal-900/40">
+            <div className="bg-teal-50 p-5 rounded-2xl border border-teal-100 flex items-center justify-between dark:bg-teal-950/30 dark:border-teal-900/50">
               <div>
-                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest block">চলতি ডেলিভারি (Active)</span>
-                <span className="text-2xl font-black text-teal-800 dark:text-teal-400 font-mono tracking-tight mt-1 block">{managerActiveDeliveries} টি</span>
+                <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest block">চলতি ডেলিভারি (Active)</span>
+                <span className="text-2xl font-black text-teal-900 dark:text-teal-300 font-mono tracking-tight mt-1 block">{managerActiveDeliveries} টি</span>
               </div>
-              <div className="w-11 h-11 bg-teal-600/10 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400 rounded-xl flex items-center justify-center">
+              <div className="w-11 h-11 bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-400 rounded-xl flex items-center justify-center">
                 <Truck className="w-5 h-5" />
               </div>
             </div>
@@ -840,6 +915,183 @@ export default function AdminDashboard({
             </div>
           </div>
         </div>
+
+        <AnimatePresence>
+          {isProfileInquiryModalOpen && (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsProfileInquiryModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className={`relative w-full max-w-4xl rounded-[24px] shadow-2xl p-6 ${isDarkMode ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-emerald-100'}`}>
+                <h3 className={`text-2xl font-black mb-6 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Profile Inquiry</h3>
+                <div className="flex gap-4">
+                  {/* Simplistic approach: Showing only unique emails/names as identified from orders */}
+                  <div className="flex-1 overflow-y-auto max-h-[400px]">
+                    <h4 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Customers</h4>
+                    <div className="space-y-2">
+                      {Array.from(new Set(orders.map(o => o.customerEmail))).map(email => email && (
+                         <div key={email} className={`flex items-center justify-between p-3 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                           <span className={`text-sm ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>{email}</span>
+                           <button onClick={() => alert("Deletion is not implemented for this demo version.")} className="text-red-500 hover:text-red-700 text-xs font-bold">Delete</button>
+                         </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto max-h-[400px]">
+                    <h4 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Managers</h4>
+                     <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Managers are registered in the system (not derived from orders)</p>
+                     {/* For this demo, assuming managers list isn't directly exposed in props, I will have a placeholder */}
+                  </div>
+                </div>
+                <button onClick={() => setIsProfileInquiryModalOpen(false)} className="mt-6 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg">Close</button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Manager Withdraw Modal */}
+        <AnimatePresence>
+          {isWithdrawHistoryModalOpen && (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsWithdrawHistoryModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className={`relative w-full max-w-lg rounded-[24px] shadow-2xl p-6 ${isDarkMode ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-emerald-100'}`}>
+                <h3 className={`text-xl font-black mb-6 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>উত্তোলনের ইতিহাস (Withdrawal History)</h3>
+                <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  {myWithdrawals.length === 0 ? (
+                    <p className={`text-center py-4 text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>কোনো ইতিহাস নেই।</p>
+                  ) : (
+                    myWithdrawals.map(w => (
+                      <div key={w.id} className={`p-4 rounded-xl flex items-center justify-between ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                        <div>
+                          <p className={`text-xs font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{w.amount.toLocaleString('bn')} ৳</p>
+                          <p className={`text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>তারিখ: {new Date(w.requestedAt).toLocaleDateString('bn-BD')}</p>
+                        </div>
+                        <span className={`px-2 py-1 text-[10px] rounded-lg font-bold ${w.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : w.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
+                          {w.status === 'approved' ? 'গৃহীত' : w.status === 'rejected' ? 'বাতিল' : 'পেন্ডিং'}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <button onClick={() => setIsWithdrawHistoryModalOpen(false)} className="mt-6 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg">বন্ধ করুন (Close)</button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showWithdrawSuccessPopup && (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowWithdrawSuccessPopup(false)}
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className={`relative w-full max-w-sm rounded-[24px] shadow-2xl p-8 flex flex-col items-center text-center ${isDarkMode ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-emerald-100'}`}
+              >
+                <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mb-5 animate-bounce shadow-lg shadow-emerald-500/20">
+                  <Check className="w-10 h-10 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <h3 className={`text-2xl font-black mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>ধন্যবাদ!</h3>
+                <p className={`text-sm mb-6 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  আপনার উইথড্র রিকোয়েস্ট সফলভাবে পাঠানো হয়েছে। অ্যাডমিন খুব শীঘ্রই আপনার পেমেন্ট পাঠিয়ে দিবে।
+                </p>
+                <button
+                  onClick={() => setShowWithdrawSuccessPopup(false)}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition-all active:scale-95 shadow-md flex justify-center"
+                >
+                  ঠিক আছে (OK)
+                </button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {isWithdrawModalOpen && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsWithdrawModalOpen(false)}
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              />
+              <motion.form
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                onSubmit={handleWithdrawSubmit}
+                className={`relative w-full max-w-sm rounded-[24px] shadow-2xl p-6 ${isDarkMode ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-100'}`}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>টাকা উত্তোলন করুন</h3>
+                  <button type="button" onClick={() => setIsWithdrawModalOpen(false)} className="text-gray-400 hover:text-red-500 transition-colors">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className={`block text-xs font-bold mb-1.5 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      অ্যামাউন্ট (Amount in Tk.) <span className="text-[10px] text-gray-500 font-normal ml-1">(Max: ৳{availableBalance.toLocaleString('bn')})</span>
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="100"
+                      max="100000"
+                      value={withdrawAmount}
+                      onChange={e => setWithdrawAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="e.g. 500"
+                      className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-teal-500/50 font-mono transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-600' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-xs font-bold mb-1.5 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>পেমেন্ট মাধ্যম (Withdraw Method)</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['bkash', 'nagad'] as const).map(method => (
+                        <button
+                          key={method}
+                          type="button"
+                          onClick={() => setWithdrawMethod(method)}
+                          className={`p-2 rounded-xl border flex justify-center items-center gap-2 font-bold text-xs uppercase tracking-wider transition-all ${withdrawMethod === method ? (method === 'bkash' ? 'bg-pink-50 border-pink-500 text-pink-700 dark:bg-pink-500/20 dark:border-pink-500/50' : 'bg-orange-50 border-orange-500 text-orange-700 dark:bg-orange-500/20 dark:border-orange-500/50') : (isDarkMode ? 'border-gray-700 bg-gray-800 text-gray-400' : 'border-gray-200 bg-gray-50 text-gray-500')}`}
+                        >
+                          {method === 'bkash' ? 'bKash' : 'Nagad'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className={`block text-xs font-bold mb-1.5 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>অ্যাকাউন্ট নাম্বার (Wallet Number)</label>
+                    <input
+                      type="text"
+                      required
+                      value={withdrawAccount}
+                      onChange={e => setWithdrawAccount(e.target.value)}
+                      placeholder={`e.g. 01XXXXXXXXX (${withdrawMethod === 'bkash' ? 'bKash' : 'Nagad'} Personal)`}
+                      className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-teal-500/50 font-mono transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-600' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'}`}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full mt-2 font-bold py-3 rounded-xl shadow-md transition-all active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2"
+                  >
+                    রিকোয়েস্ট পাঠান (Request Withdraw)
+                  </button>
+                  <p className="text-center text-[10px] text-gray-500 mt-2">অ্যাডমিন আপনার রিকোয়েস্ট যাচাই করে পেমেন্ট পাঠিয়ে দিবে।</p>
+                </div>
+              </motion.form>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }
@@ -851,9 +1103,9 @@ export default function AdminDashboard({
         : 'bg-white border-gray-150/80 text-gray-800'
     }`}>
       {/* Dashboard Top banner */}
-      <div className="p-6 bg-gradient-to-r from-teal-700 via-teal-800 to-emerald-800 text-white flex items-center justify-between">
-        <div>
-          <span className="bg-white/10 text-white/90 px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 w-max mb-1.5 border border-white/10">
+      <div className="p-6 bg-gradient-to-r from-teal-700 via-teal-800 to-emerald-800 text-white flex flex-col sm:flex-row items-center sm:justify-between gap-4">
+        <div className="text-center sm:text-left">
+          <span className="bg-white/10 text-white/90 px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 w-max mb-1.5 border border-white/10 mx-auto sm:mx-0">
             <ShieldAlert className="w-3.5 h-3.5 text-teal-200 animate-pulse" />
             ADMIN CONTROL CENTER (অ্যাডমিন প্যানেল)
           </span>
@@ -863,31 +1115,45 @@ export default function AdminDashboard({
         </div>
         
         {/* Navigation Tabs */}
-        <div className="flex bg-white/10 p-1 rounded-xl border border-white/5 shrink-0 grow-0">
-          <button
-            onClick={() => setActiveTab('stats')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${activeTab === 'stats' ? 'bg-white text-teal-900 shadow-sm' : 'text-white/80 hover:text-white'}`}
-          >
-            সারসংক্ষেপ
-          </button>
-          <button
-            onClick={() => setActiveTab('products')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${activeTab === 'products' ? 'bg-white text-teal-900 shadow-sm' : 'text-white/80 hover:text-white'}`}
-          >
-            প্রোডাক্টস ({products.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('orders')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${activeTab === 'orders' ? 'bg-white text-teal-900 shadow-sm' : 'text-white/80 hover:text-white'}`}
-          >
-            অর্ডার্স ({orders.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('emails')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${activeTab === 'emails' ? 'bg-white text-teal-900 shadow-sm' : 'text-white/80 hover:text-white'}`}
-          >
-            ইমেইলস ({emailLogs.length})
-          </button>
+        <div className="w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0">
+          <div className="flex flex-nowrap items-center justify-start sm:justify-center gap-1 bg-white/10 p-1 rounded-xl border border-white/5 mx-auto w-max">
+            <button
+              onClick={() => setActiveTab('stats')}
+              className={`px-2 py-1.5 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${activeTab === 'stats' ? 'bg-white text-teal-900 shadow-sm' : 'text-white/80 hover:text-white'}`}
+            >
+              সারসংক্ষেপ
+            </button>
+            <button
+              onClick={() => setActiveTab('products')}
+              className={`px-2 py-1.5 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${activeTab === 'products' ? 'bg-white text-teal-900 shadow-sm' : 'text-white/80 hover:text-white'}`}
+            >
+              প্রোডাক্টস ({products.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('orders')}
+              className={`px-2 py-1.5 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${activeTab === 'orders' ? 'bg-white text-teal-900 shadow-sm' : 'text-white/80 hover:text-white'}`}
+            >
+              অর্ডার্স ({orders.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('emails')}
+              className={`px-2 py-1.5 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${activeTab === 'emails' ? 'bg-white text-teal-900 shadow-sm' : 'text-white/80 hover:text-white'}`}
+            >
+              ইমেইলস ({emailLogs.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('withdrawals')}
+              className={`px-2 py-1.5 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${activeTab === 'withdrawals' ? 'bg-white text-teal-900 shadow-sm' : 'text-white/80 hover:text-white'}`}
+            >
+              উত্তোলন ({withdrawalRequests.length})
+            </button>
+            <button
+              onClick={() => setIsProfileInquiryModalOpen(true)}
+              className="px-2 py-1.5 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-lg transition-all cursor-pointer bg-white/20 text-white hover:bg-white/30 whitespace-nowrap"
+            >
+              Profile Inquiry
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1222,6 +1488,102 @@ export default function AdminDashboard({
                 </div>
               ))
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Withdrawals Tab */}
+      {activeTab === 'withdrawals' && (
+        <div className="p-6 md:p-8 space-y-6">
+          <h3 className={`text-lg font-bold flex items-center gap-2 mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            <DollarSign className="w-5 h-5 text-teal-600" /> ম্যানেজারদের উত্তোলন রিকোয়েস্ট
+          </h3>
+
+          <div className="space-y-4">
+            {withdrawalRequests.length === 0 ? (
+              <div className="py-12 text-center text-gray-400 text-sm">কোনো রিকোয়েস্ট পাওয়া যায়নি</div>
+            ) : (
+              withdrawalRequests.map(w => (
+                <div key={w.id} className={`p-4 rounded-xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-colors ${isDarkMode ? 'bg-gray-800/40 border-gray-700/60 hover:bg-gray-800/80' : 'bg-gray-50/50 hover:bg-gray-50 border-gray-150'}`}>
+                  <div className="space-y-1 w-full md:w-auto flex-1">
+                    <div className="flex items-center gap-2 flex-wrap text-xs font-mono">
+                      <span className={`px-2 py-0.5 rounded-full font-bold ${
+                        w.status === 'pending' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                        w.status === 'approved' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                        'bg-red-100 text-red-800 border border-red-200'
+                      }`}>
+                        {w.status.toUpperCase()}
+                      </span>
+                      <span className="text-gray-400">|</span>
+                      <span className="text-gray-500 font-bold tracking-wide">ID: {w.id}</span>
+                      <span className="text-gray-400">|</span>
+                      <span className="text-gray-500">{new Date(w.requestedAt).toLocaleString('bn-BD', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                    </div>
+                    <div className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-2">
+                      ম্যানেজার: <span className="font-bold">{w.managerName}</span> (ID: {w.managerId})
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                      <span>অ্যাউন্ট: <strong className="text-base text-teal-700 dark:text-teal-400 font-black">৳{w.amount.toLocaleString('bn')}</strong></span>
+                      <span className="px-2 py-0.5 rounded-md border text-[10px] uppercase font-bold tracking-wider bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+                        {w.method === 'bkash' ? 'bKash' : 'Nagad'}
+                      </span>
+                      <span className="font-mono bg-gray-100 dark:bg-gray-900 px-2 py-0.5 rounded border">{w.accountNumber}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 w-full md:w-auto shrink-0 justify-end md:justify-start">
+                    <button
+                      onClick={() => setWithdrawalToDelete(w.id)}
+                      className="px-4 py-2 text-xs font-bold rounded-lg border border-red-200 text-red-600 hover:bg-red-50 bg-white transition-colors"
+                    >
+                      ডিলিট করুন
+                    </button>
+                    {w.status === 'pending' && (
+                      <>
+                        <button
+                          onClick={() => onUpdateWithdrawalStatus(w.id, 'rejected')}
+                          className="px-4 py-2 text-xs font-bold rounded-lg border border-red-200 text-red-600 hover:bg-red-50 bg-white transition-colors"
+                        >
+                          বাতিল করুন
+                        </button>
+                        <button
+                          onClick={() => onUpdateWithdrawalStatus(w.id, 'approved')}
+                          className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm"
+                        >
+                          পরিশোধ করুন (Approve)
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {withdrawalToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl max-w-sm w-full">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">নিশ্চিত করুন</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">আপনি কি এই উত্তোলন রিকোয়েস্টটি ডিলিট করতে চান?</p>
+            <div className="flex gap-3 justify-end mt-6">
+              <button
+                onClick={() => setWithdrawalToDelete(null)}
+                className="px-4 py-2 rounded-lg font-bold text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                না
+              </button>
+              <button
+                onClick={() => {
+                  onDeleteWithdrawalRequest(withdrawalToDelete);
+                  setWithdrawalToDelete(null);
+                }}
+                className="px-4 py-2 rounded-lg font-bold text-sm bg-red-600 text-white hover:bg-red-700"
+              >
+                হ্যাঁ, ডিলিট করুন
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -11,7 +11,7 @@ import {
   Sun, Moon
 } from 'lucide-react';
 
-import { Product, CartItem, Order, User as UserType, OrderStatus, EmailNotification } from './types';
+import { Product, CartItem, Order, User as UserType, OrderStatus, EmailNotification, WithdrawalRequest } from './types';
 import { INITIAL_PRODUCTS } from './data/initialProducts';
 
 import AuthModal from './components/AuthModal';
@@ -29,6 +29,7 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailNotification[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
@@ -222,6 +223,18 @@ export default function App() {
     } catch (e) {
       console.error("Error reading orders from localStorage:", e);
       setOrders([]);
+    }
+
+    try {
+      // Load Withdrawal Requests
+      const storedWithdrawals = localStorage.getItem('bazarbd_withdrawals');
+      if (storedWithdrawals) {
+        const parsed = JSON.parse(storedWithdrawals);
+        if (Array.isArray(parsed)) setWithdrawalRequests(parsed as WithdrawalRequest[]);
+      }
+    } catch (e) {
+      console.error(e);
+      setWithdrawalRequests([]);
     }
 
     try {
@@ -535,6 +548,31 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
     }
   };
 
+  const handleWithdrawRequest = (request: WithdrawalRequest) => {
+    setWithdrawalRequests(prev => {
+      const updated = [request, ...prev];
+      safeStorageSet('bazarbd_withdrawals', updated);
+      return updated;
+    });
+  };
+
+  const handleUpdateWithdrawalStatus = (requestId: string, status: 'approved' | 'rejected') => {
+    setWithdrawalRequests(prev => {
+      const updated = prev.map(req => req.id === requestId ? { ...req, status } : req);
+      safeStorageSet('bazarbd_withdrawals', updated);
+      return updated;
+    });
+  };
+
+  const handleDeleteWithdrawalRequest = (requestId: string) => {
+    if (!window.confirm("আপনি কি নিশ্চিত যে এই উত্তোলন রিকোয়েস্টটি ডিলিট করতে চান? (Are you sure you want to delete this withdrawal request?)")) return;
+    setWithdrawalRequests(prev => {
+      const updated = prev.filter(req => req.id !== requestId);
+      safeStorageSet('bazarbd_withdrawals', updated);
+      return updated;
+    });
+  };
+
   const handleUpdateOrderStatus = (orderId: string, status: OrderStatus) => { /* order status handler */
     let targetOrder: Order | undefined;
 
@@ -585,24 +623,24 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
     <div className="min-h-screen bg-gray-50 text-gray-800 font-sans antialiased relative selection:bg-emerald-100 selection:text-emerald-900">
       {/* Dynamic Header layout */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-150/70 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-18 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             <button
               onClick={() => setCategoryDrawerOpen(true)}
-              className="p-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-950 rounded-xl transition cursor-pointer flex items-center justify-center border border-emerald-200/40 gap-1.5 shadow-sm group"
+              className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-950 rounded-lg transition cursor-pointer flex items-center justify-center border border-emerald-200/40 gap-1 shadow-sm group"
               title="বিভাগ সমূহ (Browse Categories)"
             >
-              <Menu className="w-5 h-5 pointer-events-none group-hover:rotate-6 transition-transform" />
+              <Menu className="w-5 h-5 pointer-events-none" />
               <span className="hidden md:inline text-xs font-extrabold text-emerald-950 pr-1">সব বিভাগ (Menu)</span>
             </button>
             <div 
               onClick={() => setActiveView('shop')}
-              className="flex items-center gap-2 cursor-pointer group"
+              className="flex items-center gap-1.5 cursor-pointer group"
             >
-              <div className="w-10 h-10 bg-gradient-to-tr from-emerald-600 to-teal-750 text-white rounded-xl flex items-center justify-center shadow-md shadow-emerald-500/10 group-hover:scale-105 transition-transform duration-300">
-                <ShoppingBag className="w-5.5 h-5.5" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-tr from-emerald-600 to-teal-750 text-white rounded-lg flex items-center justify-center shadow-md shadow-emerald-500/10 group-hover:scale-105 transition-transform duration-300">
+                <ShoppingBag className="w-4 h-4 sm:w-5.5 sm:h-5.5" />
               </div>
-              <div>
+              <div className="hidden sm:block">
                 <h1 className="text-sm sm:text-lg font-black tracking-tight text-gray-950 font-sans leading-none flex items-center gap-1.5">
                   iBazar
                   <span className="text-[10px] bg-emerald-500/10 text-emerald-700 font-extrabold px-1.5 py-0.5 rounded-md border border-emerald-500/10 uppercase">
@@ -825,9 +863,9 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
                         className="w-full h-full object-cover group-hover/img:scale-105 transition-all duration-500"
                       />
                       {/* Elegant hover detail badge overlay */}
-                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
-                        <span className="bg-white/95 backdrop-blur-xs text-gray-900 font-extrabold text-[10px] px-3 py-1.5 rounded-full shadow-md flex items-center gap-1 transform scale-95 group-hover/img:scale-100 transition-all duration-300">
-                          <Search className="w-3 h-3 text-emerald-700" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-xs text-gray-950 dark:text-gray-100 font-extrabold text-[10px] px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1 transform scale-95 group-hover/img:scale-100 transition-all duration-300">
+                          <Search className="w-3 h-3 text-emerald-700 dark:text-emerald-400" />
                           বিস্তারিত দেখুন (Details)
                         </span>
                       </div>
@@ -924,12 +962,16 @@ iBazar বেছে নেওয়ার জন্য আপনাকে ধন্
             <AdminDashboard
               products={products}
               orders={orders}
+              withdrawalRequests={withdrawalRequests}
               emailLogs={emailLogs}
               onAddProduct={handleAddProduct}
               onUpdateProduct={handleUpdateProduct}
               onDeleteProduct={handleDeleteProduct}
               onUpdateOrderStatus={handleUpdateOrderStatus}
               onDeleteOrder={handleDeleteOrder}
+              onWithdrawRequest={handleWithdrawRequest}
+              onUpdateWithdrawalStatus={handleUpdateWithdrawalStatus}
+              onDeleteWithdrawalRequest={handleDeleteWithdrawalRequest}
               isDarkMode={isDarkMode}
               currentUser={currentUser}
             />

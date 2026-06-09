@@ -66,3 +66,14 @@ export interface EmailNotification {
   body: string;
   sentAt: string;
 }
+
+export interface WithdrawalRequest {
+  id: string;
+  managerId: string;
+  managerName: string;
+  amount: number;
+  method: 'bkash' | 'nagad';
+  accountNumber: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string;
+}
